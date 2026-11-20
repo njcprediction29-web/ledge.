@@ -1,0 +1,44 @@
+name: Build Ledge APK
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.9
+
+      - name: Unzip project if uploaded as a zip
+        run: |
+          if ls *.zip >/dev/null 2>&1; then
+            mkdir -p project
+            unzip -q -o *.zip -d project
+          fi
+
+      - name: Build debug APK
+        run: |
+          SETTINGS=$(find . -name "settings.gradle*" -not -path "./.git/*" | head -n 1)
+          if [ -z "$SETTINGS" ]; then
+            echo "No settings.gradle found - project structure is wrong"
+            exit 1
+          fi
+          cd "$(dirname "$SETTINGS")"
+          gradle assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Ledge-APK
+          path: "**/build/outputs/apk/debug/*.apk"
