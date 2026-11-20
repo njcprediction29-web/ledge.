@@ -15,9 +15,6 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - name: Accept Android licenses
-        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
-
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: 8.9
@@ -29,17 +26,25 @@ jobs:
             unzip -q -o *.zip -d project
           fi
 
-      - name: Build debug APK
+      - name: Build release APK
         run: |
+          cat > "$HOME/release.init.gradle" <<'EOF'
+          allprojects {
+              afterEvaluate { p ->
+                  if (p.plugins.hasPlugin('com.android.application')) {
+                      p.android.buildTypes.release {
+                          signingConfig p.android.signingConfigs.debug
+                          minifyEnabled false
+                      }
+                  }
+              }
+          }
+          EOF
           SETTINGS=$(find . -name "settings.gradle*" -not -path "./.git/*" | head -n 1)
-          if [ -z "$SETTINGS" ]; then
-            echo "No settings.gradle found - project structure is wrong"
-            exit 1
-          fi
           cd "$(dirname "$SETTINGS")"
-          gradle assembleDebug --no-daemon
+          gradle assembleRelease --no-daemon --init-script "$HOME/release.init.gradle"
 
       - uses: actions/upload-artifact@v4
         with:
           name: Ledge-APK
-          path: "**/build/outputs/apk/debug/*.apk"
+          path: "**/build/outputs/apk/release/*.apk"
