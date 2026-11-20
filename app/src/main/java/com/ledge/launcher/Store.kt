@@ -122,9 +122,9 @@ class Store(private val app: Application) : AndroidViewModel(app) {
         sp.edit().putString("favs", favs.joinToString("|")).apply()
     }
     fun setFont(v: Int) { fontLevel = v; sp.edit().putInt("font", v).apply() }
-    fun setTheme(v: Int) { theme = v; sp.edit().putInt("theme", v).apply() }
-    fun setAccent(v: Int) { accent = v; sp.edit().putInt("accent", v).apply() }
-    fun setUseF(v: Boolean) { useF = v; sp.edit().putBoolean("useF", v).apply() }
+   @JvmName("applyTheme") fun setTheme(v: Int) { theme = v; sp.edit().putInt("theme", v).apply() }
+   @JvmName("applyAccent") fun setAccent(v: Int) { accent = v; sp.edit().putInt("accent", v).apply() }
+   @JvmName("applyUseF") fun setUseF(v: Boolean) { useF = v; sp.edit().putBoolean("useF", v).apply() }
     fun addTodo(t: String) {
         if (t.isBlank()) return
         todos = todos + t.trim()
