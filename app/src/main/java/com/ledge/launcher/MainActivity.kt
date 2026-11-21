@@ -22,73 +22,39 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.scaleIn
-import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.BlurredEdgeTreatment
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Shadow
-import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.*
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
@@ -96,12 +62,15 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.exp
+import kotlin.math.roundToInt
 
 class MainActivity : ComponentActivity() {
     private val store by viewModels<Store>()
@@ -121,11 +90,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        store.homeTick++   // Home button pressed: close menus and go back to top
+        store.homeTick++
     }
 }
-
-// ---------- small helpers ----------
 
 fun go(ctx: Context, i: Intent) {
     try { ctx.startActivity(i) } catch (e: Exception) { }
@@ -133,8 +100,7 @@ fun go(ctx: Context, i: Intent) {
 
 fun launchApp(ctx: Context, a: AppItem) = go(
     ctx,
-    Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        .setClassName(a.pkg, a.cls)
+    Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setClassName(a.pkg, a.cls)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
 )
 
@@ -150,234 +116,331 @@ fun searchContacts(ctx: Context, q: String): List<Contact> {
             "${ContactsContract.Contacts.DISPLAY_NAME} ASC"
         )?.use { c ->
             while (c.moveToNext() && out.size < 4) {
-                val uri = ContactsContract.Contacts.getLookupUri(c.getLong(0), c.getString(1))
-                out.add(Contact(c.getString(2) ?: "", uri))
+                out.add(Contact(c.getString(2) ?: "", ContactsContract.Contacts.getLookupUri(c.getLong(0), c.getString(1))))
             }
         }
     } catch (e: Exception) { }
     return out
 }
 
-fun shadowStyle() = TextStyle(shadow = Shadow(Color(0x99000000), Offset(0f, 2f), 6f))
-
-// ---------- main screen ----------
+val SH = TextStyle(shadow = Shadow(Color(0x99000000), Offset(0f, 2f), 6f))
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun Home(s: Store) {
     val ctx = LocalContext.current
     val act = ctx as Activity
-    val pal = palette(s.theme, s.accent)
+    val pal = palette(s.i("theme"), s.i("accent"))
     val haptic = LocalHapticFeedback.current
     val focus = LocalFocusManager.current
-    val listState = rememberLazyListState()
 
     var menuApp by remember { mutableStateOf<AppItem?>(null) }
     var settingsOpen by remember { mutableStateOf(false) }
+    var verseOpen by remember { mutableStateOf(false) }
+    var todoOpen by remember { mutableStateOf(false) }
     var searchOpen by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
+    var from by remember { mutableStateOf<Char?>(null) }
     var active by remember { mutableStateOf<Char?>(null) }
+    var bubY by remember { mutableFloatStateOf(0f) }
     var hasContacts by remember {
         mutableStateOf(ctx.checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED)
     }
-    val locLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { s.refreshWeather() }
-    val contactLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { hasContacts = it }
-    val overlay = menuApp != null || settingsOpen
+    val locL = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { s.refreshWeather() }
+    val conL = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { hasContacts = it }
+    val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { u -> if (u != null) s.setPhoto(u) }
+    val overlay = menuApp != null || settingsOpen || verseOpen || todoOpen
 
     fun closeSearch() { query = ""; searchOpen = false; focus.clearFocus() }
 
     LaunchedEffect(Unit) {
         if (ctx.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED)
-            locLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+            locL.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
     }
     LaunchedEffect(s.homeTick) {
         if (s.homeTick > 0) {
-            menuApp = null; settingsOpen = false; closeSearch()
-            listState.animateScrollToItem(0)
+            menuApp = null; settingsOpen = false; verseOpen = false; todoOpen = false; closeSearch(); from = null
         }
     }
-    // Blur the wallpaper behind the window while a menu is open (Android 12+ phones that support it)
     LaunchedEffect(overlay) {
         if (Build.VERSION.SDK_INT >= 31) {
             try { act.window.setBackgroundBlurRadius(if (overlay) 70 else 0) } catch (e: Exception) { }
         }
     }
-    BackHandler(overlay || searchOpen) {
-        if (menuApp != null) menuApp = null else if (settingsOpen) settingsOpen = false else closeSearch()
-    }
-
-    val visible = s.apps.filter { it.pkg !in s.hidden }
-    val entries = remember(visible) { buildEntries(visible) }
-    val favApps = s.favs.mapNotNull { p -> visible.firstOrNull { it.pkg == p } }
-    // number of list items that come before the alphabetical entries
-    val base = 1 + (if (favApps.isNotEmpty()) favApps.size + 1 else 0) + 1
-
     LaunchedEffect(active) {
-        val c = active ?: return@LaunchedEffect
-        val idx = if (c == '#') 0 else entries.indexOfFirst { it is Entry.Head && it.c != '#' && it.c >= c }
-            .let { if (it < 0) entries.lastIndex else it }
-        if (entries.isNotEmpty()) listState.scrollToItem(base + idx)
-        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+        if (active != null) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+    }
+    BackHandler(overlay || searchOpen || from != null) {
+        when {
+            menuApp != null -> menuApp = null
+            settingsOpen -> settingsOpen = false
+            verseOpen -> verseOpen = false
+            todoOpen -> todoOpen = false
+            searchOpen -> closeSearch()
+            else -> from = null
+        }
     }
 
+    val vis = s.apps.filter { it.pkg !in s.hidden }
+    val entries = remember(vis, from) { buildEntries(vis, from) }
+    val favApps = s.favs.mapNotNull { p -> vis.firstOrNull { it.pkg == p } }
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val left = s.i("side") == 1
+    val icon = s.i("icon")
+    val showN = s.i("sn") == 1
+    val wp = s.i("wp")
+    val wb = if (overlay) Modifier.blur(18.dp, BlurredEdgeTreatment.Unbounded) else Modifier
 
-    Box(Modifier.fillMaxSize().background(pal.scrim)) {
-        // ===== everything that gets blurred when a menu is open =====
-        Box(Modifier.fillMaxSize().then(if (overlay) Modifier.blur(18.dp) else Modifier)) {
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxSize().imePadding(),
-                contentPadding = PaddingValues(top = top + 12.dp, bottom = bottom + 24.dp, start = 22.dp, end = 54.dp)
-            ) {
-                item(key = "head") {
-                    HeaderBlock(s, pal, onWeather = { locLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION) }, onSettings = { settingsOpen = true })
-                }
-                if (favApps.isNotEmpty()) {
-                    item(key = "favt") { Title("★ Favorites", pal) }
-                    items(favApps, key = { "f" + it.pkg }) { a ->
-                        AppRow(a, pal, Badges.counts[a.pkg] ?: 0, { launchApp(ctx, a) }) {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuApp = a
-                        }
-                    }
-                }
-                item(key = "allt") { Title("All apps", pal) }
-                itemsIndexed(entries, key = { i, _ -> "e$i" }) { _, e ->
-                    when (e) {
-                        is Entry.Head -> Text(
-                            e.c.toString(), color = pal.accent, fontSize = 15.sp, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 14.dp, bottom = 2.dp, start = 4.dp)
-                        )
-                        is Entry.App -> AppRow(e.app, pal, Badges.counts[e.app.pkg] ?: 0, { launchApp(ctx, e.app) }) {
-                            haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuApp = e.app
-                        }
-                    }
-                }
-            }
-
-            Rail(LETTER_SP[s.fontLevel], pal, active, Modifier.align(Alignment.CenterEnd).padding(end = 2.dp),
-                onLetter = { active = it }, onEnd = { active = null })
-
-            active?.let {
-                Box(
-                    Modifier.align(Alignment.Center).size(84.dp).clip(CircleShape).background(pal.accent),
-                    contentAlignment = Alignment.Center
-                ) { Text(it.toString(), color = Color.Black, fontSize = 38.sp, fontWeight = FontWeight.Bold) }
-            }
-
-            SearchBar(s, pal, top, searchOpen, query, hasContacts,
-                onOpen = { searchOpen = true }, onQuery = { query = it }, onClose = { closeSearch() },
-                onAskContacts = { contactLauncher.launch(Manifest.permission.READ_CONTACTS) })
+    Box(Modifier.fillMaxSize()) {
+        // wallpaper
+        if (wp in PACKS.indices) {
+            Box(Modifier.fillMaxSize().then(wb).background(Brush.linearGradient(PACKS[wp].colors, Offset.Zero, Offset(1200f, 2600f))))
+        } else if (wp == 100) {
+            s.wallBmp?.let { Image(it, null, Modifier.fillMaxSize().then(wb), contentScale = ContentScale.Crop) }
         }
+        Box(Modifier.fillMaxSize().background(pal.scrim))
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = s.i("dim") / 100f * 0.65f)))
 
-        // ===== long-press menu =====
-        menuApp?.let { a ->
-            var shown by remember { mutableStateOf(false) }
-            LaunchedEffect(Unit) { shown = true }
-            Box(
-                Modifier.fillMaxSize().background(Color(0x59000000))
-                    .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { menuApp = null },
-                contentAlignment = Alignment.Center
-            ) {
-                AnimatedVisibility(shown, enter = fadeIn() + scaleIn(initialScale = 0.85f)) {
-                    val isFav = a.pkg in s.favs
-                    Column(
-                        Modifier.padding(28.dp).fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(pal.card)
-                            .pointerInput(Unit) { detectTapGestures { } }.padding(vertical = 10.dp)
-                    ) {
-                        Row(Modifier.padding(horizontal = 22.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Image(loadIcon(ctx, a), null, Modifier.size(56.dp))
-                            Spacer(Modifier.width(16.dp))
-                            Column {
-                                Text(a.label, color = pal.text, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                val n = Badges.counts[a.pkg] ?: 0
-                                Text(if (n > 0) "$n notification${if (n > 1) "s" else ""}" else "App options", color = pal.sub, fontSize = 14.sp)
+        Box(Modifier.fillMaxSize().then(if (overlay) Modifier.blur(18.dp) else Modifier)) {
+            key(from) {
+                val ls = rememberLazyListState()
+                LazyColumn(
+                    state = ls,
+                    modifier = Modifier.fillMaxSize().imePadding(),
+                    contentPadding = PaddingValues(
+                        top = top + 14.dp, bottom = bottom + 40.dp,
+                        start = if (left) 46.dp else 20.dp, end = if (left) 20.dp else 46.dp
+                    )
+                ) {
+                    if (from == null) {
+                        item(key = "head") {
+                            HeaderBlock(s, pal, { locL.launch(Manifest.permission.ACCESS_COARSE_LOCATION) },
+                                { settingsOpen = true }, { verseOpen = true }, { todoOpen = true })
+                        }
+                        items(favApps, key = { "f" + it.pkg }) { a ->
+                            AppRow(a, pal, icon, if (showN) Badges.counts[a.pkg] ?: 0 else 0,
+                                if (showN) Badges.last[a.pkg] else null, { launchApp(ctx, a) }) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuApp = a
                             }
                         }
-                        Box(Modifier.fillMaxWidth().padding(horizontal = 22.dp).size(1.dp).background(pal.text.copy(alpha = .12f)))
-                        MenuRow("⭐", if (isFav) "Remove from favorites" else "Add to favorites", pal) { s.toggleFav(a.pkg); menuApp = null }
-                        MenuRow("🙈", "Hide app", pal) { s.toggleHidden(a.pkg); menuApp = null }
-                        MenuRow("ℹ️", "App info", pal) {
-                            go(ctx, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${a.pkg}"))); menuApp = null
+                        item(key = "hint") {
+                            Text(
+                                if (favApps.isEmpty()) "Slide the letters to find apps. Long-press an app to add favorites."
+                                else "Slide the letters to see all apps",
+                                color = pal.sub, fontSize = 11.sp, modifier = Modifier.padding(top = 18.dp, start = 4.dp)
+                            )
                         }
-                        MenuRow("🗑️", "Uninstall", pal, Color(0xFFFF6B6B)) {
-                            go(ctx, Intent(Intent.ACTION_DELETE, Uri.parse("package:${a.pkg}"))); menuApp = null
+                    } else {
+                        itemsIndexed(entries, key = { n, _ -> "e$n" }) { _, e ->
+                            when (e) {
+                                is Entry.Head -> Text(
+                                    e.c.toString(), color = pal.accent, fontSize = 14.sp, fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(top = 14.dp, start = 4.dp)
+                                )
+                                is Entry.App -> AppRow(e.app, pal, icon, if (showN) Badges.counts[e.app.pkg] ?: 0 else 0, null,
+                                    { launchApp(ctx, e.app) }) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuApp = e.app
+                                }
+                            }
                         }
+                        item(key = "lumen") {
+                            Title("LUMEN", pal)
+                            MenuRow("🕘", "Recently installed", pal) { searchOpen = true }
+                            MenuRow("⚙️", "Lumen settings", pal) { settingsOpen = true }
+                        }
+                    }
+                }
+            }
+
+            val h = floatArrayOf(0.6f, 0.72f, 0.84f)[s.i("rh").coerceIn(0, 2)]
+            val bias = floatArrayOf(-1f, 0f, 1f)[s.i("pos").coerceIn(0, 2)]
+            Box(Modifier.fillMaxSize().padding(top = top + 56.dp, bottom = bottom + 40.dp)) {
+                Rail(
+                    LETTER_SP[s.i("font").coerceIn(0, 2)], pal, left, active,
+                    Modifier.align(BiasAlignment(if (left) -1f else 1f, bias)).fillMaxHeight(h),
+                    onTouch = { c, y -> active = c; bubY = y; from = if (c == '★') null else c },
+                    onEnd = { active = null }
+                )
+            }
+            active?.let {
+                Box(
+                    Modifier.align(if (left) Alignment.TopStart else Alignment.TopEnd)
+                        .padding(start = if (left) 100.dp else 0.dp, end = if (left) 0.dp else 100.dp)
+                        .offset { IntOffset(0, (bubY - 27.dp.toPx()).roundToInt()) }
+                        .size(54.dp).clip(CircleShape).background(pal.accent),
+                    contentAlignment = Alignment.Center
+                ) { Text(it.toString(), color = Color.Black, fontSize = 26.sp, fontWeight = FontWeight.Bold) }
+            }
+
+            SearchBar(s, pal, top, icon, searchOpen, query, hasContacts,
+                onOpen = { searchOpen = true }, onQuery = { query = it }, onClose = { closeSearch() },
+                onAskContacts = { conL.launch(Manifest.permission.READ_CONTACTS) })
+        }
+
+        menuApp?.let { a ->
+            val isFav = a.pkg in s.favs
+            Popup(pal, { menuApp = null }) {
+                Row(Modifier.padding(horizontal = 22.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    AppIcon(a, icon, pal, 56.dp)
+                    Spacer(Modifier.width(16.dp))
+                    Column {
+                        Text(a.label, color = pal.text, fontSize = 22.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        val n = Badges.counts[a.pkg] ?: 0
+                        Text(if (n > 0) "$n notification${if (n > 1) "s" else ""}" else "App options", color = pal.sub, fontSize = 14.sp)
+                    }
+                }
+                MenuRow("⭐", if (isFav) "Remove from favorites" else "Add to favorites", pal) { s.toggleFav(a.pkg); menuApp = null }
+                MenuRow("🙈", "Hide app", pal) { s.toggleHidden(a.pkg); menuApp = null }
+                MenuRow("ℹ️", "App info", pal) {
+                    go(ctx, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${a.pkg}"))); menuApp = null
+                }
+                MenuRow("🗑️", "Uninstall", pal, Color(0xFFFF6B6B)) {
+                    go(ctx, Intent(Intent.ACTION_DELETE, Uri.parse("package:${a.pkg}"))); menuApp = null
+                }
+            }
+        }
+
+        if (verseOpen) {
+            val v = s.verse()
+            Popup(pal, { verseOpen = false }) {
+                Column(Modifier.padding(horizontal = 22.dp)) {
+                    Text("📖 ${v.first}", color = pal.accent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    Text("“${v.second}”", color = pal.text, fontSize = 17.sp, fontStyle = FontStyle.Italic,
+                        modifier = Modifier.padding(vertical = 12.dp))
+                    Text("King James Version", color = pal.sub, fontSize = 12.sp)
+                    Row(Modifier.padding(top = 14.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Chip("‹ Previous", false, pal, Modifier.weight(1f)) { s.vOff-- }
+                        Chip(if (v.first in s.vFav) "♥ Saved" else "♡ Save", v.first in s.vFav, pal, Modifier.weight(1f)) { s.toggleVFav(v.first) }
+                        Chip("Next ›", false, pal, Modifier.weight(1f)) { s.vOff++ }
                     }
                 }
             }
         }
 
-        // ===== Ledge settings =====
-        if (settingsOpen) {
-            Box(
-                Modifier.fillMaxSize().background(Color(0x59000000))
-                    .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { settingsOpen = false },
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    Modifier.padding(22.dp).fillMaxWidth().heightIn(max = 640.dp).clip(RoundedCornerShape(28.dp)).background(pal.card)
-                        .pointerInput(Unit) { detectTapGestures { } }
-                        .verticalScroll(rememberScrollState()).padding(22.dp)
-                ) {
-                    Text("Ledge settings", color = pal.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-
-                    SectionLabel("A–Z letter size", pal)
-                    Text("A B C D E F", color = pal.accent, fontSize = LETTER_SP[s.fontLevel].sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.size(8.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("Small", "Medium", "Large", "XL").forEachIndexed { i, l ->
-                            Chip(l, s.fontLevel == i, pal, Modifier.weight(1f)) { s.setFont(i) }
+        if (todoOpen) {
+            var nt by remember { mutableStateOf("") }
+            Popup(pal, { todoOpen = false }) {
+                Column(Modifier.padding(horizontal = 22.dp)) {
+                    Text("✓ To-do", color = pal.text, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    s.todos.forEachIndexed { n, t ->
+                        Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.size(26.dp).clip(CircleShape).border(2.dp, pal.accent, CircleShape).clickable { s.doneTodo(n) })
+                            Spacer(Modifier.width(12.dp))
+                            Text(t, color = pal.text, fontSize = 16.sp, modifier = Modifier.weight(1f))
                         }
                     }
-
-                    SectionLabel("Theme", pal)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("Dark", "Light", "Black").forEachIndexed { i, l ->
-                            Chip(l, s.theme == i, pal, Modifier.weight(1f)) { s.setTheme(i) }
+                    BasicTextField(
+                        nt, { nt = it }, modifier = Modifier.padding(top = 16.dp).fillMaxWidth(), singleLine = true,
+                        textStyle = TextStyle(color = pal.text, fontSize = 16.sp), cursorBrush = SolidColor(pal.accent),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        keyboardActions = KeyboardActions(onDone = { s.addTodo(nt); nt = "" }),
+                        decorationBox = { inner ->
+                            if (nt.isEmpty()) Text("＋ Add a task, then press Done", color = pal.sub, fontSize = 16.sp)
+                            inner()
                         }
-                    }
-
-                    SectionLabel("Accent color", pal)
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        ACCENTS.forEachIndexed { i, c ->
-                            Box(
-                                Modifier.size(38.dp).clip(CircleShape).background(c)
-                                    .then(if (s.accent == i) Modifier.border(3.dp, pal.text, CircleShape) else Modifier)
-                                    .clickable { s.setAccent(i) }
-                            )
-                        }
-                    }
-
-                    SectionLabel("Temperature", pal)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Chip("°C", !s.useF, pal, Modifier.weight(1f)) { s.setUseF(false) }
-                        Chip("°F", s.useF, pal, Modifier.weight(1f)) { s.setUseF(true) }
-                    }
-
-                    SectionLabel("Permissions", pal)
-                    MenuRow("📍", "Allow location (for weather)", pal) { locLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION) }
-                    MenuRow("🔔", "Turn on notification badges", pal) { go(ctx, Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
-                    Text(
-                        "If Android blocks it as a \"restricted setting\": Settings > Apps > Ledge > ⋮ (top right) > Allow restricted settings, then try again.",
-                        color = pal.sub, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 4.dp)
                     )
-
-                    val hiddenApps = s.apps.filter { it.pkg in s.hidden }
-                    SectionLabel("Hidden apps (tap to unhide)", pal)
-                    if (hiddenApps.isEmpty()) Text("None. Long-press an app and choose Hide app.", color = pal.sub, fontSize = 14.sp)
-                    hiddenApps.forEach { a -> MenuRow("👁️", a.label, pal) { s.toggleHidden(a.pkg) } }
                 }
+            }
+        }
+
+        if (settingsOpen) {
+            Popup(pal, { settingsOpen = false }) {
+                SettingsBody(s, pal, { pick.launch("image/*") }, { locL.launch(Manifest.permission.ACCESS_COARSE_LOCATION) })
             }
         }
     }
 }
 
-// ---------- pieces ----------
-
 @Composable
-fun HeaderBlock(s: Store, pal: Pal, onWeather: () -> Unit, onSettings: () -> Unit) {
+fun SettingsBody(s: Store, pal: Pal, onPick: () -> Unit, onLoc: () -> Unit) {
+    val ctx = LocalContext.current
+    var torch by remember { mutableStateOf(false) }
+    Column(Modifier.padding(horizontal = 22.dp)) {
+        Text("Lumen settings", color = pal.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+
+        SectionLabel("Wallpaper", pal)
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Tile("System", null, s.i("wp") == -1, pal) { s.setI("wp", -1) }
+            PACKS.forEachIndexed { n, p -> Tile(p.name, Brush.verticalGradient(p.colors), s.i("wp") == n, pal) { s.setI("wp", n) } }
+            Tile("📷 My photo", null, s.i("wp") == 100, pal) { onPick() }
+        }
+        SectionLabel("Dim: ${s.i("dim")}%", pal)
+        Slider(
+            value = s.i("dim").toFloat(), onValueChange = { s.setI("dim", it.roundToInt()) }, valueRange = 0f..70f,
+            colors = SliderDefaults.colors(thumbColor = pal.accent, activeTrackColor = pal.accent)
+        )
+
+        SectionLabel("Icon style", pal)
+        Seg(listOf("Color", "Black & white", "Simple"), s.i("icon"), pal) { s.setI("icon", it) }
+
+        SectionLabel("Show on home", pal)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Chip("Weather", s.i("sw") == 1, pal, Modifier.weight(1f)) { s.setI("sw", 1 - s.i("sw")) }
+            Chip("Battery", s.i("sb") == 1, pal, Modifier.weight(1f)) { s.setI("sb", 1 - s.i("sb")) }
+            Chip("Verse", s.i("sv") == 1, pal, Modifier.weight(1f)) { s.setI("sv", 1 - s.i("sv")) }
+        }
+        Spacer(Modifier.size(6.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Chip("To-do", s.i("st") == 1, pal, Modifier.weight(1f)) { s.setI("st", 1 - s.i("st")) }
+            Chip("Notifications", s.i("sn") == 1, pal, Modifier.weight(2f)) { s.setI("sn", 1 - s.i("sn")) }
+        }
+
+        SectionLabel("A–Z letter size", pal)
+        Seg(listOf("Small", "Medium", "Large"), s.i("font"), pal) { s.setI("font", it) }
+        SectionLabel("A–Z side", pal)
+        Seg(listOf("Right", "Left"), s.i("side"), pal) { s.setI("side", it) }
+        SectionLabel("A–Z height", pal)
+        Seg(listOf("Short", "Medium", "Tall"), s.i("rh"), pal) { s.setI("rh", it) }
+        SectionLabel("A–Z position", pal)
+        Seg(listOf("Up", "Middle", "Down"), s.i("pos"), pal) { s.setI("pos", it) }
+
+        SectionLabel("Theme", pal)
+        Seg(listOf("Dark", "Light", "Black"), s.i("theme"), pal) { s.setI("theme", it) }
+        SectionLabel("Accent color", pal)
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ACCENTS.forEachIndexed { n, c ->
+                Box(
+                    Modifier.size(36.dp).clip(CircleShape).background(c)
+                        .then(if (s.i("accent") == n) Modifier.border(3.dp, pal.text, CircleShape) else Modifier)
+                        .clickable { s.setI("accent", n) }
+                )
+            }
+        }
+        SectionLabel("Temperature", pal)
+        Seg(listOf("°C", "°F"), s.i("useF"), pal) { s.setI("useF", it) }
+
+        SectionLabel("Quick settings", pal)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Chip("📶 Wi-Fi", false, pal, Modifier.weight(1f)) { go(ctx, Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY)) }
+            Chip("🔵 BT", false, pal, Modifier.weight(1f)) { go(ctx, Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
+            Chip("🔦 Light", torch, pal, Modifier.weight(1f)) {
+                try {
+                    val cm = ctx.getSystemService(CameraManager::class.java)
+                    val id = cm.cameraIdList.firstOrNull { cm.getCameraCharacteristics(it).get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true }
+                    if (id != null) { torch = !torch; cm.setTorchMode(id, torch) }
+                } catch (e: Exception) { torch = false }
+            }
+        }
+
+        SectionLabel("Permissions", pal)
+        MenuRow("📍", "Allow location (weather)", pal) { onLoc() }
+        MenuRow("🔔", "Turn on notification badges", pal) { go(ctx, Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
+        Text(
+            "If Android says \"restricted setting\": Settings > Apps > Lumen > ⋮ (top right) > Allow restricted settings, then try again.",
+            color = pal.sub, fontSize = 12.sp
+        )
+
+        val hiddenApps = s.apps.filter { it.pkg in s.hidden }
+        SectionLabel("Hidden apps (tap to unhide)", pal)
+        if (hiddenApps.isEmpty()) Text("None. Long-press an app and choose Hide app.", color = pal.sub, fontSize = 14.sp)
+        hiddenApps.forEach { a -> MenuRow("👁️", a.label, pal) { s.toggleHidden(a.pkg) } }
+    }
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun HeaderBlock(s: Store, pal: Pal, onWeather: () -> Unit, onSettings: () -> Unit, onVerse: () -> Unit, onTodo: () -> Unit) {
     val ctx = LocalContext.current
     val now by produceState(System.currentTimeMillis()) { while (true) { value = System.currentTimeMillis(); delay(10_000) } }
     val battery by produceState(-1) {
@@ -389,160 +452,184 @@ fun HeaderBlock(s: Store, pal: Pal, onWeather: () -> Unit, onSettings: () -> Uni
     val pattern = if (DateFormat.is24HourFormat(ctx)) "HH:mm" else "h:mm"
     val time = SimpleDateFormat(pattern, Locale.getDefault()).format(Date(now))
     val date = SimpleDateFormat("EEE, MMM d", Locale.getDefault()).format(Date(now))
-    val verse = remember(now / 3_600_000) { todayVerse() }
-    var verseOpen by remember { mutableStateOf(false) }
-    var torch by remember { mutableStateOf(false) }
-    var newTask by remember { mutableStateOf("") }
+    val verse = s.verse()
+    val weather = s.weatherText()
 
-    Column(Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
-        Text(time, color = pal.accent, fontSize = 56.sp, fontWeight = FontWeight.Bold, style = shadowStyle())
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(date, color = pal.text, fontSize = 15.sp, style = shadowStyle())
-            if (battery >= 0) Text("   🔋 $battery%", color = pal.text, fontSize = 15.sp, style = shadowStyle())
-        }
+    Column(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
         Text(
-            s.weatherText() ?: "🌡️ Tap to show weather",
-            color = pal.text, fontSize = 17.sp, fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(top = 4.dp).clickable { if (s.weatherText() == null) onWeather() },
-            style = shadowStyle()
+            time, color = pal.text, fontSize = 34.sp, fontWeight = FontWeight.Light, style = SH,
+            modifier = Modifier.combinedClickable(onClick = {}, onLongClick = onSettings)
         )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(date, color = pal.sub, fontSize = 12.sp, style = SH)
+            if (s.i("sw") == 1) {
+                Text(
+                    "  ·  ${weather ?: "🌡️ tap for weather"}", color = pal.sub, fontSize = 12.sp, style = SH,
+                    modifier = Modifier.clickable { if (weather == null) onWeather() }
+                )
+            }
+            if (s.i("sb") == 1 && battery >= 0) Text("  ·  🔋 $battery%", color = pal.sub, fontSize = 12.sp, style = SH)
+        }
+        Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (s.i("sv") == 1) SmallChip("📖 ${verse.first}", pal, onVerse)
+            if (s.i("st") == 1) SmallChip("✓ ${s.todos.size} task${if (s.todos.size == 1) "" else "s"}", pal, onTodo)
+        }
+    }
+}
 
-        // Verse of the day
+@Composable
+fun SmallChip(text: String, pal: Pal, onClick: () -> Unit) {
+    Box(
+        Modifier.clip(RoundedCornerShape(99.dp)).background(pal.text.copy(alpha = .16f)).clickable(onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 5.dp)
+    ) { Text(text, color = pal.text, fontSize = 11.sp, maxLines = 1) }
+}
+
+@Composable
+fun Popup(pal: Pal, onClose: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+    Box(
+        Modifier.fillMaxSize().background(Color(0x59000000))
+            .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { onClose() },
+        contentAlignment = Alignment.Center
+    ) {
         Column(
-            Modifier.padding(top = 14.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp))
-                .background(pal.card.copy(alpha = .62f)).clickable { verseOpen = !verseOpen }.padding(14.dp)
-        ) {
-            Text("📖 ${verse.first}", color = pal.accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            Text(
-                "“${verse.second}”", color = pal.text, fontSize = 14.sp, fontStyle = FontStyle.Italic,
-                maxLines = if (verseOpen) 12 else 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp)
-            )
-        }
+            Modifier.padding(24.dp).fillMaxWidth().heightIn(max = 640.dp).clip(RoundedCornerShape(28.dp)).background(pal.card)
+                .pointerInput(Unit) { detectTapGestures { } }
+                .verticalScroll(rememberScrollState()).padding(vertical = 14.dp),
+            content = content
+        )
+    }
+}
 
-        // Quick settings
-        Row(Modifier.padding(top = 12.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Chip("📶 Wi-Fi", false, pal, Modifier.weight(1f)) {
-                go(ctx, Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY))
-            }
-            Chip("🔵 BT", false, pal, Modifier.weight(1f)) { go(ctx, Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
-            Chip("🔦 Light", torch, pal, Modifier.weight(1f)) {
-                try {
-                    val cm = ctx.getSystemService(CameraManager::class.java)
-                    val id = cm.cameraIdList.firstOrNull { cm.getCameraCharacteristics(it).get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true }
-                    if (id != null) { torch = !torch; cm.setTorchMode(id, torch) }
-                } catch (e: Exception) { torch = false }
-            }
-            Chip("⚙️", false, pal, Modifier.weight(0.6f)) { onSettings() }
+@Composable
+fun AppIcon(a: AppItem, style: Int, pal: Pal, size: androidx.compose.ui.unit.Dp = 42.dp) {
+    val ctx = LocalContext.current
+    val bmp = remember(a.pkg) { loadIcon(ctx, a) }
+    val gray = remember { ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }) }
+    when (style) {
+        0 -> Image(bmp, null, Modifier.size(size))
+        1 -> Image(bmp, null, Modifier.size(size), colorFilter = gray)
+        else -> Box(Modifier.size(size).border(1.5.dp, pal.text, RoundedCornerShape(12.dp)).padding(6.dp)) {
+            Image(bmp, null, Modifier.fillMaxSize(), colorFilter = gray, alpha = 0.9f)
         }
+    }
+}
 
-        // To-do
-        Column(
-            Modifier.padding(top = 12.dp).fillMaxWidth().clip(RoundedCornerShape(18.dp))
-                .background(pal.card.copy(alpha = .62f)).padding(14.dp)
-        ) {
-            Text("📝 To-do (${s.todos.size})", color = pal.accent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            s.todos.forEachIndexed { i, t ->
-                Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        Modifier.size(24.dp).clip(CircleShape).border(2.dp, pal.accent, CircleShape).clickable { s.doneTodo(i) }
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Text(t, color = pal.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
-                }
-            }
-            BasicTextField(
-                newTask, { newTask = it },
-                modifier = Modifier.padding(top = 10.dp).fillMaxWidth(),
-                singleLine = true,
-                textStyle = TextStyle(color = pal.text, fontSize = 15.sp),
-                cursorBrush = SolidColor(pal.accent),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                keyboardActions = KeyboardActions(onDone = { s.addTodo(newTask); newTask = "" }),
-                decorationBox = { inner ->
-                    if (newTask.isEmpty()) Text("＋ Add a task, then press Done", color = pal.sub, fontSize = 15.sp)
-                    inner()
-                }
-            )
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun AppRow(a: AppItem, pal: Pal, icon: Int, badge: Int, sub: String?, onOpen: () -> Unit, onMenu: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+            .combinedClickable(onClick = onOpen, onLongClick = onMenu).padding(vertical = 8.dp, horizontal = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AppIcon(a, icon, pal)
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)) {
+            Text(a.label, color = pal.text, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, style = SH)
+            if (!sub.isNullOrBlank()) Text(sub, color = pal.sub, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
+        if (badge > 0) Box(
+            Modifier.defaultMinSize(22.dp, 22.dp).clip(CircleShape).background(pal.accent).padding(horizontal = 6.dp),
+            contentAlignment = Alignment.Center
+        ) { Text(if (badge > 99) "99+" else "$badge", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
     }
 }
 
 @Composable
 fun Title(t: String, pal: Pal) {
-    Text(t, color = pal.sub, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 18.dp, bottom = 4.dp, start = 4.dp))
+    Text(t, color = pal.sub, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 20.dp, bottom = 2.dp, start = 4.dp))
 }
 
 @Composable
 fun SectionLabel(t: String, pal: Pal) {
-    Text(t, color = pal.sub, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 20.dp, bottom = 8.dp))
-}
-
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun AppRow(a: AppItem, pal: Pal, badge: Int, onOpen: () -> Unit, onMenu: () -> Unit) {
-    val ctx = LocalContext.current
-    val icon = remember(a.pkg) { loadIcon(ctx, a) }
-    Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-            .combinedClickable(onClick = onOpen, onLongClick = onMenu).padding(vertical = 9.dp, horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Image(icon, null, Modifier.size(42.dp))
-        Spacer(Modifier.width(16.dp))
-        Text(a.label, color = pal.text, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f), style = shadowStyle())
-        if (badge > 0) Box(
-            Modifier.defaultMinSize(22.dp, 22.dp).clip(CircleShape).background(pal.accent).padding(horizontal = 6.dp),
-            contentAlignment = Alignment.Center
-        ) { Text(if (badge > 99) "99+" else "$badge", color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.Bold) }
-    }
+    Text(t, color = pal.sub, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 18.dp, bottom = 8.dp))
 }
 
 @Composable
 fun MenuRow(icon: String, label: String, pal: Pal, color: Color = pal.text, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 22.dp, vertical = 15.dp),
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 22.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(icon, fontSize = 20.sp)
         Spacer(Modifier.width(16.dp))
-        Text(label, color = color, fontSize = 18.sp)
+        Text(label, color = color, fontSize = 17.sp)
     }
 }
 
 @Composable
 fun Chip(label: String, sel: Boolean, pal: Pal, mod: Modifier = Modifier, onClick: () -> Unit) {
     Box(
-        mod.clip(RoundedCornerShape(14.dp))
-            .background(if (sel) pal.accent else pal.text.copy(alpha = .12f))
-            .clickable(onClick = onClick).padding(vertical = 12.dp),
+        mod.clip(RoundedCornerShape(14.dp)).background(if (sel) pal.accent else pal.text.copy(alpha = .12f))
+            .clickable(onClick = onClick).padding(vertical = 12.dp, horizontal = 4.dp),
         contentAlignment = Alignment.Center
-    ) { Text(label, color = if (sel) Color.Black else pal.text, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1) }
+    ) { Text(label, color = if (sel) Color.Black else pal.text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, maxLines = 1) }
 }
 
 @Composable
-fun Rail(sizeSp: Int, pal: Pal, active: Char?, modifier: Modifier, onLetter: (Char) -> Unit, onEnd: () -> Unit) {
-    val letters = ('A'..'Z').toList() + '#'
+fun Seg(labels: List<String>, sel: Int, pal: Pal, onSel: (Int) -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        labels.forEachIndexed { n, l -> Chip(l, sel == n, pal, Modifier.weight(1f)) { onSel(n) } }
+    }
+}
+
+@Composable
+fun Tile(label: String, brush: Brush?, sel: Boolean, pal: Pal, onClick: () -> Unit) {
+    Box(
+        Modifier.size(64.dp, 104.dp).clip(RoundedCornerShape(14.dp))
+            .then(if (brush != null) Modifier.background(brush) else Modifier.background(pal.text.copy(alpha = .12f)))
+            .then(if (sel) Modifier.border(3.dp, pal.accent, RoundedCornerShape(14.dp)) else Modifier)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Text(label, color = if (brush != null) Color.White else pal.text, fontSize = 10.sp, style = SH, modifier = Modifier.padding(bottom = 6.dp))
+    }
+}
+
+@Composable
+fun Rail(
+    sizeSp: Int, pal: Pal, left: Boolean, active: Char?, modifier: Modifier,
+    onTouch: (Char, Float) -> Unit, onEnd: () -> Unit
+) {
+    val letters = remember { listOf('★') + ('A'..'Z').toList() + '#' }
     var h by remember { mutableIntStateOf(1) }
-    androidx.compose.foundation.layout.Column(
-        modifier.width(38.dp).fillMaxHeight(0.8f).onSizeChanged { h = it.height }
+    var top by remember { mutableFloatStateOf(0f) }
+    var yy by remember { mutableFloatStateOf(-1f) }
+    val dens = LocalDensity.current.density
+    Column(
+        modifier.width(28.dp).onSizeChanged { h = it.height }.onGloballyPositioned { top = it.positionInRoot().y }
             .pointerInput(Unit) {
                 awaitPointerEventScope {
                     while (true) {
                         val p = awaitPointerEvent().changes.first()
                         if (p.pressed) {
-                            val i = (p.position.y / h * letters.size).toInt().coerceIn(0, letters.size - 1)
-                            onLetter(letters[i]); p.consume()
-                        } else onEnd()
+                            yy = p.position.y
+                            val n = (yy / h * letters.size).toInt().coerceIn(0, letters.size - 1)
+                            onTouch(letters[n], top + yy)
+                            p.consume()
+                        } else if (yy >= 0f) {
+                            yy = -1f
+                            onEnd()
+                        }
                     }
                 }
             },
         verticalArrangement = Arrangement.SpaceEvenly,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        letters.forEach {
+        letters.forEachIndexed { n, c ->
             Text(
-                it.toString(), fontSize = sizeSp.sp, fontWeight = FontWeight.Bold,
-                color = if (it == active) pal.accent else pal.sub, style = shadowStyle()
+                c.toString(), fontSize = sizeSp.sp, fontWeight = FontWeight.Bold,
+                color = if (c == active) pal.accent else pal.sub, style = SH,
+                modifier = Modifier.graphicsLayer {
+                    val rh = h.toFloat() / letters.size
+                    val d = if (yy < 0f) 99f else (rh * (n + 0.5f) - yy) / rh
+                    val shift = 46f * dens * exp(-d * d / (2f * 2.3f * 2.3f))
+                    translationX = if (left) shift else -shift
+                    val sc = 1f + shift / (150f * dens)
+                    scaleX = sc; scaleY = sc
+                }
             )
         }
     }
@@ -550,7 +637,7 @@ fun Rail(sizeSp: Int, pal: Pal, active: Char?, modifier: Modifier, onLetter: (Ch
 
 @Composable
 fun SearchBar(
-    s: Store, pal: Pal, top: androidx.compose.ui.unit.Dp, open: Boolean, query: String, hasContacts: Boolean,
+    s: Store, pal: Pal, top: androidx.compose.ui.unit.Dp, icon: Int, open: Boolean, query: String, hasContacts: Boolean,
     onOpen: () -> Unit, onQuery: (String) -> Unit, onClose: () -> Unit, onAskContacts: () -> Unit
 ) {
     val ctx = LocalContext.current
@@ -558,7 +645,7 @@ fun SearchBar(
     BoxWithConstraints(Modifier.fillMaxSize().padding(top = top + 8.dp, start = 14.dp, end = 14.dp)) {
         val w by animateDpAsState(if (open) maxWidth else 42.dp, label = "searchWidth")
         val q = query.trim()
-        val appHits = if (q.isEmpty()) emptyList() else
+        val appHits = if (q.isEmpty()) s.recent() else
             s.apps.filter { it.label.contains(q, true) }.sortedBy { !it.label.startsWith(q, true) }.take(6)
         val contactHits = if (hasContacts && q.length >= 2) searchContacts(ctx, q) else emptyList()
 
@@ -593,17 +680,18 @@ fun SearchBar(
                     Text("✕", color = pal.text, fontSize = 18.sp, modifier = Modifier.clickable { onClose() }.padding(horizontal = 16.dp, vertical = 10.dp))
                 }
             }
-            if (open && q.isNotEmpty()) {
+            if (open) {
                 Column(
                     Modifier.padding(top = 8.dp).width(w).heightIn(max = 420.dp).clip(RoundedCornerShape(22.dp))
                         .background(pal.card.copy(alpha = .96f)).verticalScroll(rememberScrollState()).padding(vertical = 6.dp)
                 ) {
+                    if (q.isEmpty()) Text("Recently installed", color = pal.sub, fontSize = 12.sp, modifier = Modifier.padding(start = 16.dp, top = 8.dp))
                     appHits.forEach { a ->
                         Row(
                             Modifier.fillMaxWidth().clickable { launchApp(ctx, a); onClose() }.padding(horizontal = 16.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Image(loadIcon(ctx, a), null, Modifier.size(34.dp))
+                            AppIcon(a, icon, pal, 34.dp)
                             Spacer(Modifier.width(14.dp))
                             Text(a.label, color = pal.text, fontSize = 17.sp)
                         }
@@ -611,9 +699,11 @@ fun SearchBar(
                     contactHits.forEach { c ->
                         MenuRow("👤", c.name, pal) { go(ctx, Intent(Intent.ACTION_VIEW, c.uri)); onClose() }
                     }
-                    if (!hasContacts) MenuRow("👤", "Allow contact search", pal) { onAskContacts() }
-                    MenuRow("🌐", "Search web for “$q”", pal) {
-                        go(ctx, Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=" + Uri.encode(q)))); onClose()
+                    if (q.isNotEmpty()) {
+                        if (!hasContacts) MenuRow("👤", "Allow contact search", pal) { onAskContacts() }
+                        MenuRow("🌐", "Search web for “$q”", pal) {
+                            go(ctx, Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=" + Uri.encode(q)))); onClose()
+                        }
                     }
                 }
             }
