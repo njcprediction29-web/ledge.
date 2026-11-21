@@ -61,6 +61,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -82,7 +83,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val bar = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
         enableEdgeToEdge(statusBarStyle = bar, navigationBarStyle = bar)
-        setContent { Home(store) }
+        setContent { CompositionLocalProvider(LocalStore provides store) { Home(store) } }
     }
 
     override fun onResume() {
@@ -127,6 +128,15 @@ fun searchContacts(ctx: Context, q: String): List<Contact> {
 }
 
 val SH = TextStyle(shadow = Shadow(Color(0x99000000), Offset(0f, 2f), 6f))
+
+val LocalStore = staticCompositionLocalOf<Store> { error("Store not provided") }
+
+fun labelFont(i: Int): FontFamily = when (i) {
+    1 -> FontFamily.Serif
+    2 -> FontFamily.Monospace
+    3 -> FontFamily.Cursive
+    else -> FontFamily.Default
+}
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -407,8 +417,25 @@ fun SettingsBody(s: Store, pal: Pal, onPick: () -> Unit, onLoc: () -> Unit) {
             colors = SliderDefaults.colors(thumbColor = pal.accent, activeTrackColor = pal.accent)
         )
 
+        SectionLabel("Icons and labels (preview)", pal)
+        s.apps.firstOrNull()?.let { AppRow(it, pal, s.i("icon"), 0, null, {}, {}) }
+
         SectionLabel("Icon style", pal)
         Seg(listOf("Color", "Black & white", "Simple"), s.i("icon"), pal) { s.setI("icon", it) }
+        SectionLabel("Icon shape", pal)
+        Seg(listOf("Default", "Circle", "Soft", "Square"), s.i("ishape"), pal) { s.setI("ishape", it) }
+        SectionLabel("Icon size", pal)
+        Seg(listOf("Small", "Medium", "Large"), s.i("isize"), pal) { s.setI("isize", it) }
+        SectionLabel("Icon spacing", pal)
+        Seg(listOf("Tight", "Normal", "Roomy"), s.i("ispace"), pal) { s.setI("ispace", it) }
+        SectionLabel("App labels", pal)
+        Seg(listOf("Hidden", "Shown"), s.i("labels"), pal) { s.setI("labels", it) }
+        SectionLabel("Label size", pal)
+        Seg(listOf("Small", "Medium", "Large"), s.i("lsize"), pal) { s.setI("lsize", it) }
+        SectionLabel("Label weight", pal)
+        Seg(listOf("Light", "Normal", "Bold"), s.i("lweight"), pal) { s.setI("lweight", it) }
+        SectionLabel("Label font", pal)
+        Seg(listOf("Default", "Serif", "Mono", "Script"), s.i("lfont"), pal) { s.setI("lfont", it) }
 
         SectionLabel("Show on home", pal)
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -541,14 +568,24 @@ fun Popup(pal: Pal, onClose: () -> Unit, content: @Composable ColumnScope.() -> 
 }
 
 @Composable
-fun AppIcon(a: AppItem, style: Int, pal: Pal, size: androidx.compose.ui.unit.Dp = 42.dp) {
+fun AppIcon(a: AppItem, style: Int, pal: Pal, size: androidx.compose.ui.unit.Dp? = null) {
     val ctx = LocalContext.current
+    val st = LocalStore.current
+    val sz = size ?: floatArrayOf(36f, 42f, 50f)[st.i("isize").coerceIn(0, 2)].dp
+    val shapeKind = st.i("ishape")
+    val shape: Shape = when (shapeKind) {
+        1 -> CircleShape
+        2 -> RoundedCornerShape(30)
+        3 -> RoundedCornerShape(4.dp)
+        else -> RoundedCornerShape(12.dp)
+    }
     val bmp = remember(a.pkg) { loadIcon(ctx, a) }
     val gray = remember { ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }) }
+    val clipMod = if (shapeKind != 0) Modifier.clip(shape) else Modifier
     when (style) {
-        0 -> Image(bmp, null, Modifier.size(size))
-        1 -> Image(bmp, null, Modifier.size(size), colorFilter = gray)
-        else -> Box(Modifier.size(size).border(1.5.dp, pal.text, RoundedCornerShape(12.dp)).padding(6.dp)) {
+        0 -> Image(bmp, null, Modifier.size(sz).then(clipMod))
+        1 -> Image(bmp, null, Modifier.size(sz).then(clipMod), colorFilter = gray)
+        else -> Box(Modifier.size(sz).clip(shape).border(1.5.dp, pal.text, shape).padding(sz * 0.14f)) {
             Image(bmp, null, Modifier.fillMaxSize(), colorFilter = gray, alpha = 0.9f)
         }
     }
@@ -557,30 +594,35 @@ fun AppIcon(a: AppItem, style: Int, pal: Pal, size: androidx.compose.ui.unit.Dp 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AppRow(a: AppItem, pal: Pal, icon: Int, badge: Int, sub: String?, onOpen: () -> Unit, onMenu: () -> Unit) {
+    val st = LocalStore.current
+    val vp = floatArrayOf(4f, 8f, 14f)[st.i("ispace").coerceIn(0, 2)].dp
+    val labelSp = floatArrayOf(15f, 17f, 19f)[st.i("lsize").coerceIn(0, 2)].sp
+    val weight = arrayOf(FontWeight.Light, FontWeight.Normal, FontWeight.Bold)[st.i("lweight").coerceIn(0, 2)]
+    val family = labelFont(st.i("lfont"))
+    val showLabel = st.i("labels") == 1
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-            .combinedClickable(onClick = onOpen, onLongClick = onMenu).padding(vertical = 8.dp, horizontal = 4.dp),
+            .combinedClickable(onClick = onOpen, onLongClick = onMenu).padding(vertical = vp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         AppIcon(a, icon, pal)
-        Spacer(Modifier.width(16.dp))
-        Column(Modifier.weight(1f)) {
-            Text(a.label, color = pal.text, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, style = SH)
-            if (!sub.isNullOrBlank()) Text(sub, color = pal.sub, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        if (showLabel) {
+            Spacer(Modifier.width(16.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    a.label, color = pal.text, fontSize = labelSp, fontWeight = weight, fontFamily = family,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, style = SH
+                )
+                if (!sub.isNullOrBlank()) Text(sub, color = pal.sub, fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        } else {
+            Spacer(Modifier.weight(1f))
         }
         if (badge > 0) Box(
             Modifier.defaultMinSize(22.dp, 22.dp).clip(CircleShape).background(pal.accent).padding(horizontal = 6.dp),
             contentAlignment = Alignment.Center
         ) { Text(if (badge > 99) "99+" else "$badge", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
     }
-}
-
-fun letterOf(a: AppItem): Char = a.label.firstOrNull()?.takeIf { it.isLetter() }?.uppercaseChar() ?: '#'
-
-// Which letter group to show for the rail letter: the same letter, or the next one that has apps (like Niagara)
-fun groupFor(letters: List<Char>, hasHash: Boolean, c: Char): Char? {
-    if (c == '#') return if (hasHash) '#' else letters.lastOrNull()
-    return letters.firstOrNull { it >= c } ?: letters.lastOrNull()
 }
 
 // Favorites row: same as AppRow, nudged a little toward the middle of the screen
