@@ -191,6 +191,7 @@ fun Home(s: Store) {
     val shownGroup = from?.let { groupFor(groupLetters, groups.containsKey('#'), it) }
     val homeState = rememberLazyListState()
     val allState = rememberLazyListState()
+    LaunchedEffect(shownGroup) { allState.scrollToItem(0) }
     val favApps = s.favs.mapNotNull { p -> vis.firstOrNull { it.pkg == p } }
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -283,7 +284,7 @@ fun Home(s: Store) {
                         if (c != active) {
                             active = c
                             if (c == '★') from = null
-                            else { from = c; allState.requestScrollToItem(0) }
+                            else from = c
                         }
                     },
                     onEnd = { active = null }
