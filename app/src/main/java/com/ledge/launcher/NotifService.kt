@@ -1,14 +1,15 @@
 package com.ledge.launcher
 
+import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
-/** Holds how many notifications each app has, so the app list can show badges. */
 object Badges {
     var counts by mutableStateOf<Map<String, Int>>(emptyMap())
+    var last by mutableStateOf<Map<String, String>>(emptyMap())
 }
 
 class NotifService : NotificationListenerService() {
@@ -18,10 +19,14 @@ class NotifService : NotificationListenerService() {
 
     private fun refresh() {
         try {
-            Badges.counts = activeNotifications
-                .filter { it.isClearable }
-                .groupingBy { it.packageName }
-                .eachCount()
+            val list = activeNotifications.filter { it.isClearable }
+            Badges.counts = list.groupingBy { it.packageName }.eachCount()
+            Badges.last = list.sortedByDescending { it.postTime }.distinctBy { it.packageName }.associate {
+                val e = it.notification.extras
+                it.packageName to listOfNotNull(
+                    e.getCharSequence(Notification.EXTRA_TITLE), e.getCharSequence(Notification.EXTRA_TEXT)
+                ).joinToString(": ")
+            }
         } catch (e: Exception) {
         }
     }
