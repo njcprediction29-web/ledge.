@@ -15,7 +15,8 @@ jobs:
         with:
           gradle-version: "8.7"
       - run: gradle assembleDebug --no-daemon
+      - run: cp app/build/outputs/apk/debug/app-debug.apk Lumen.apk
       - uses: actions/upload-artifact@v4
         with:
-          name: Ledge-APK
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Lumen-APK
+          path: Lumen.apk
