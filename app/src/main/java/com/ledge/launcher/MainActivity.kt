@@ -22,7 +22,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -53,6 +55,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalFocusManager
@@ -182,13 +185,19 @@ fun Home(s: Store) {
     }
 
     val vis = s.apps.filter { it.pkg !in s.hidden }
-    val entries = remember(vis, from) { buildEntries(vis, from) }
+    val groups = remember(s.apps, s.hidden) { vis.groupBy { letterOf(it) } }
+    val groupLetters = remember(groups) { groups.keys.filter { it != '#' }.sorted() }
+    val allTop = (LocalConfiguration.current.screenHeightDp * 0.27f).dp
+    val shownGroup = from?.let { groupFor(groupLetters, groups.containsKey('#'), it) }
+    val homeState = rememberLazyListState()
+    val allState = rememberLazyListState()
     val favApps = s.favs.mapNotNull { p -> vis.firstOrNull { it.pkg == p } }
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val left = s.i("side") == 1
     val icon = s.i("icon")
     val clean = s.i("clean") == 1
+    val homeTop = floatArrayOf(14f, 90f, 170f)[s.i("hy").coerceIn(0, 2)].dp
     val showN = s.i("sn") == 1 && !clean
     val wp = s.i("wp")
     val wb = if (overlay) Modifier.blur(18.dp, BlurredEdgeTreatment.Unbounded) else Modifier
@@ -204,17 +213,16 @@ fun Home(s: Store) {
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = s.i("dim") / 100f * 0.65f)))
 
         Box(Modifier.fillMaxSize().then(if (overlay) Modifier.blur(18.dp) else Modifier)) {
-            key(from) {
-                val ls = rememberLazyListState()
-                LazyColumn(
-                    state = ls,
-                    modifier = Modifier.fillMaxSize().imePadding(),
-                    contentPadding = PaddingValues(
-                        top = top + 14.dp, bottom = bottom + 40.dp,
-                        start = if (left) 46.dp else 20.dp, end = if (left) 20.dp else 46.dp
-                    )
-                ) {
-                    if (from == null) {
+            Crossfade(targetState = from == null, animationSpec = tween(120), label = "homeOrAll") { isHome ->
+                if (isHome) {
+                    LazyColumn(
+                        state = homeState,
+                        modifier = Modifier.fillMaxSize().imePadding(),
+                        contentPadding = PaddingValues(
+                            top = top + homeTop, bottom = bottom + 40.dp,
+                            start = if (left) 46.dp else 20.dp, end = if (left) 20.dp else 46.dp
+                        )
+                    ) {
                         item(key = "head") {
                             HeaderBlock(s, pal, { locL.launch(Manifest.permission.ACCESS_COARSE_LOCATION) },
                                 { settingsOpen = true }, { verseOpen = true }, { todoOpen = true })
@@ -234,23 +242,31 @@ fun Home(s: Store) {
                                 )
                             }
                         }
-                    } else {
-                        itemsIndexed(entries, key = { n, _ -> "e$n" }) { _, e ->
-                            when (e) {
-                                is Entry.Head -> Text(
-                                    e.c.toString(), color = pal.accent, fontSize = 14.sp, fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(top = 14.dp, start = 4.dp)
+                    }
+                } else {
+                    val g = shownGroup
+                    val list = if (g != null) groups[g].orEmpty() else emptyList()
+                    LazyColumn(
+                        state = allState,
+                        modifier = Modifier.fillMaxSize().imePadding(),
+                        contentPadding = PaddingValues(
+                            top = top + allTop, bottom = bottom + 40.dp,
+                            start = if (left) 46.dp else 20.dp, end = if (left) 20.dp else 46.dp
+                        )
+                    ) {
+                        if (g != null) {
+                            item(key = "gh$g") {
+                                Text(
+                                    g.toString(), color = pal.accent, fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(bottom = 6.dp, start = 4.dp)
                                 )
-                                is Entry.App -> AppRow(e.app, pal, icon, if (showN) Badges.counts[e.app.pkg] ?: 0 else 0, null,
-                                    { launchApp(ctx, e.app) }) {
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuApp = e.app
+                            }
+                            items(list, key = { "g" + it.pkg }) { a ->
+                                AppRow(a, pal, icon, if (showN) Badges.counts[a.pkg] ?: 0 else 0, null,
+                                    { launchApp(ctx, a) }) {
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuApp = a
                                 }
                             }
-                        }
-                        item(key = "lumen") {
-                            Title("LUMEN", pal)
-                            MenuRow("🕘", "Recently installed", pal) { searchOpen = true }
-                            MenuRow("⚙️", "Lumen settings", pal) { settingsOpen = true }
                         }
                     }
                 }
@@ -262,7 +278,14 @@ fun Home(s: Store) {
                 Rail(
                     LETTER_SP[s.i("font").coerceIn(0, 2)], pal, left, active,
                     Modifier.align(BiasAlignment(if (left) -1f else 1f, bias)).fillMaxHeight(h),
-                    onTouch = { c, y -> active = c; bubY = y; from = if (c == '★') null else c },
+                    onTouch = { c, y ->
+                        bubY = y
+                        if (c != active) {
+                            active = c
+                            if (c == '★') from = null
+                            else { from = c; allState.requestScrollToItem(0) }
+                        }
+                    },
                     onEnd = { active = null }
                 )
             }
@@ -270,7 +293,7 @@ fun Home(s: Store) {
             active?.takeIf { it != '★' }?.let { letter ->
                 Box(
                     Modifier.align(if (left) Alignment.TopStart else Alignment.TopEnd)
-                        .padding(start = if (left) 100.dp else 0.dp, end = if (left) 0.dp else 100.dp)
+                        .padding(start = if (left) 134.dp else 0.dp, end = if (left) 0.dp else 134.dp)
                         .offset { IntOffset(0, (bubY - 27.dp.toPx()).roundToInt()) }
                         .size(54.dp).clip(CircleShape).background(pal.accent),
                     contentAlignment = Alignment.Center
@@ -367,6 +390,9 @@ fun SettingsBody(s: Store, pal: Pal, onPick: () -> Unit, onLoc: () -> Unit) {
 
         SectionLabel("Clean Mode", pal)
         Seg(listOf("Off", "On"), s.i("clean"), pal) { s.setI("clean", it) }
+
+        SectionLabel("Home position (clock + favorites)", pal)
+        Seg(listOf("High", "Medium", "Low"), s.i("hy"), pal) { s.setI("hy", it) }
 
         SectionLabel("Wallpaper", pal)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -548,6 +574,14 @@ fun AppRow(a: AppItem, pal: Pal, icon: Int, badge: Int, sub: String?, onOpen: ()
     }
 }
 
+fun letterOf(a: AppItem): Char = a.label.firstOrNull()?.takeIf { it.isLetter() }?.uppercaseChar() ?: '#'
+
+// Which letter group to show for the rail letter: the same letter, or the next one that has apps (like Niagara)
+fun groupFor(letters: List<Char>, hasHash: Boolean, c: Char): Char? {
+    if (c == '#') return if (hasHash) '#' else letters.lastOrNull()
+    return letters.firstOrNull { it >= c } ?: letters.lastOrNull()
+}
+
 // Favorites row: same as AppRow, nudged a little toward the middle of the screen
 @Composable
 fun FavRow(a: AppItem, pal: Pal, icon: Int, badge: Int, sub: String?, onOpen: () -> Unit, onMenu: () -> Unit) {
@@ -615,6 +649,8 @@ fun Rail(
     var top by remember { mutableFloatStateOf(0f) }
     var yy by remember { mutableFloatStateOf(-1f) }
     val dens = LocalDensity.current.density
+    val touchNow by rememberUpdatedState(onTouch)
+    val endNow by rememberUpdatedState(onEnd)
     Column(
         modifier.width(28.dp).onSizeChanged { h = it.height }.onGloballyPositioned { top = it.positionInRoot().y }
             .pointerInput(Unit) {
@@ -624,11 +660,11 @@ fun Rail(
                         if (p.pressed) {
                             yy = p.position.y
                             val n = (yy / h * letters.size).toInt().coerceIn(0, letters.size - 1)
-                            onTouch(letters[n], top + yy)
+                            touchNow(letters[n], top + yy)
                             p.consume()
                         } else if (yy >= 0f) {
                             yy = -1f
-                            onEnd()
+                            endNow()
                         }
                     }
                 }
@@ -643,9 +679,10 @@ fun Rail(
                 modifier = Modifier.graphicsLayer {
                     val rh = h.toFloat() / letters.size
                     val d = if (yy < 0f) 99f else (rh * (n + 0.5f) - yy) / rh
-                    val shift = 46f * dens * exp(-d * d / (2f * 2.3f * 2.3f))
+                    val g = exp(-d * d / (2f * 4.2f * 4.2f))
+                    val shift = 96f * dens * g
                     translationX = if (left) shift else -shift
-                    val sc = 1f + shift / (150f * dens)
+                    val sc = 1f + 0.3f * g
                     scaleX = sc; scaleY = sc
                 }
             )
