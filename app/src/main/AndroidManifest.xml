@@ -14,7 +14,9 @@
 
     <application
         android:allowBackup="true"
-        android:label="Ledge"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
+        android:label="Lumen"
         android:theme="@style/Theme.Ledge">
 
         <activity
@@ -33,7 +35,7 @@
         <service
             android:name=".NotifService"
             android:exported="true"
-            android:label="Ledge badges"
+            android:label="Lumen badges"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
