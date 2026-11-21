@@ -188,7 +188,8 @@ fun Home(s: Store) {
     val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val left = s.i("side") == 1
     val icon = s.i("icon")
-    val showN = s.i("sn") == 1
+    val clean = s.i("clean") == 1
+    val showN = s.i("sn") == 1 && !clean
     val wp = s.i("wp")
     val wb = if (overlay) Modifier.blur(18.dp, BlurredEdgeTreatment.Unbounded) else Modifier
 
@@ -219,17 +220,19 @@ fun Home(s: Store) {
                                 { settingsOpen = true }, { verseOpen = true }, { todoOpen = true })
                         }
                         items(favApps, key = { "f" + it.pkg }) { a ->
-                            AppRow(a, pal, icon, if (showN) Badges.counts[a.pkg] ?: 0 else 0,
+                            FavRow(a, pal, icon, if (showN) Badges.counts[a.pkg] ?: 0 else 0,
                                 if (showN) Badges.last[a.pkg] else null, { launchApp(ctx, a) }) {
                                 haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuApp = a
                             }
                         }
-                        item(key = "hint") {
-                            Text(
-                                if (favApps.isEmpty()) "Slide the letters to find apps. Long-press an app to add favorites."
-                                else "Slide the letters to see all apps",
-                                color = pal.sub, fontSize = 11.sp, modifier = Modifier.padding(top = 18.dp, start = 4.dp)
-                            )
+                        if (!clean) {
+                            item(key = "hint") {
+                                Text(
+                                    if (favApps.isEmpty()) "Slide the letters to find apps. Long-press an app to add favorites."
+                                    else "Slide the letters to see all apps",
+                                    color = pal.sub, fontSize = 11.sp, modifier = Modifier.padding(top = 18.dp, start = 4.dp)
+                                )
+                            }
                         }
                     } else {
                         itemsIndexed(entries, key = { n, _ -> "e$n" }) { _, e ->
@@ -263,19 +266,22 @@ fun Home(s: Store) {
                     onEnd = { active = null }
                 )
             }
-            active?.let {
+            // the blue letter bubble: not shown for the star (Favorites)
+            active?.takeIf { it != '★' }?.let { letter ->
                 Box(
                     Modifier.align(if (left) Alignment.TopStart else Alignment.TopEnd)
                         .padding(start = if (left) 100.dp else 0.dp, end = if (left) 0.dp else 100.dp)
                         .offset { IntOffset(0, (bubY - 27.dp.toPx()).roundToInt()) }
                         .size(54.dp).clip(CircleShape).background(pal.accent),
                     contentAlignment = Alignment.Center
-                ) { Text(it.toString(), color = Color.Black, fontSize = 26.sp, fontWeight = FontWeight.Bold) }
+                ) { Text(letter.toString(), color = Color.Black, fontSize = 26.sp, fontWeight = FontWeight.Bold) }
             }
 
-            SearchBar(s, pal, top, icon, searchOpen, query, hasContacts,
-                onOpen = { searchOpen = true }, onQuery = { query = it }, onClose = { closeSearch() },
-                onAskContacts = { conL.launch(Manifest.permission.READ_CONTACTS) })
+            if (!clean || searchOpen) {
+                SearchBar(s, pal, top, icon, searchOpen, query, hasContacts,
+                    onOpen = { searchOpen = true }, onQuery = { query = it }, onClose = { closeSearch() },
+                    onAskContacts = { conL.launch(Manifest.permission.READ_CONTACTS) })
+            }
         }
 
         menuApp?.let { a ->
@@ -358,6 +364,9 @@ fun SettingsBody(s: Store, pal: Pal, onPick: () -> Unit, onLoc: () -> Unit) {
     var torch by remember { mutableStateOf(false) }
     Column(Modifier.padding(horizontal = 22.dp)) {
         Text("Lumen settings", color = pal.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+
+        SectionLabel("Clean Mode", pal)
+        Seg(listOf("Off", "On"), s.i("clean"), pal) { s.setI("clean", it) }
 
         SectionLabel("Wallpaper", pal)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -454,6 +463,7 @@ fun HeaderBlock(s: Store, pal: Pal, onWeather: () -> Unit, onSettings: () -> Uni
     val date = SimpleDateFormat("EEE, MMM d", Locale.getDefault()).format(Date(now))
     val verse = s.verse()
     val weather = s.weatherText()
+    val clean = s.i("clean") == 1
 
     Column(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
         Text(
@@ -470,9 +480,11 @@ fun HeaderBlock(s: Store, pal: Pal, onWeather: () -> Unit, onSettings: () -> Uni
             }
             if (s.i("sb") == 1 && battery >= 0) Text("  ·  🔋 $battery%", color = pal.sub, fontSize = 12.sp, style = SH)
         }
-        Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            if (s.i("sv") == 1) SmallChip("📖 ${verse.first}", pal, onVerse)
-            if (s.i("st") == 1) SmallChip("✓ ${s.todos.size} task${if (s.todos.size == 1) "" else "s"}", pal, onTodo)
+        if (!clean) {
+            Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (s.i("sv") == 1) SmallChip("📖 ${verse.first}", pal, onVerse)
+                if (s.i("st") == 1) SmallChip("✓ ${s.todos.size} task${if (s.todos.size == 1) "" else "s"}", pal, onTodo)
+            }
         }
     }
 }
@@ -534,6 +546,12 @@ fun AppRow(a: AppItem, pal: Pal, icon: Int, badge: Int, sub: String?, onOpen: ()
             contentAlignment = Alignment.Center
         ) { Text(if (badge > 99) "99+" else "$badge", color = Color.Black, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
     }
+}
+
+// Favorites row: same as AppRow, nudged a little toward the middle of the screen
+@Composable
+fun FavRow(a: AppItem, pal: Pal, icon: Int, badge: Int, sub: String?, onOpen: () -> Unit, onMenu: () -> Unit) {
+    Box(Modifier.padding(start = 28.dp)) { AppRow(a, pal, icon, badge, sub, onOpen, onMenu) }
 }
 
 @Composable
