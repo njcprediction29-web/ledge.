@@ -33,6 +33,7 @@ import org.json.JSONObject
 import java.io.File
 import java.net.URL
 import java.util.Calendar
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.resume
 import kotlin.math.roundToInt
 
@@ -83,7 +84,7 @@ fun palette(theme: Int, accent: Int): Pal {
     }
 }
 
-private val iconCache = HashMap<String, ImageBitmap>()
+private val iconCache = ConcurrentHashMap<String, ImageBitmap>()
 
 fun loadIcon(ctx: Context, a: AppItem): ImageBitmap = iconCache.getOrPut(a.pkg) {
     val pm = ctx.packageManager
@@ -110,9 +111,12 @@ class Store(private val app: Application) : AndroidViewModel(app) {
     private val sp = app.getSharedPreferences("ledge", Context.MODE_PRIVATE)
 
     // font=A-Z size, theme, accent, icon=icon style, side/rh/pos=A-Z placement, dim, wp=wallpaper (-1 system, 0.. pack, 100 photo)
+    // clean=Clean Mode, hy=home position (0 high, 1 medium, 2 low)
     private val defs = mapOf(
         "font" to 1, "theme" to 0, "accent" to 0, "icon" to 0, "side" to 0, "rh" to 1, "pos" to 1,
-        "dim" to 30, "wp" to -1, "useF" to 0, "sw" to 1, "sb" to 1, "sv" to 1, "st" to 1, "sn" to 1, "clean" to 0
+        "dim" to 30, "wp" to -1, "useF" to 0, "sw" to 1, "sb" to 1, "sv" to 1, "st" to 1, "sn" to 1,
+        "clean" to 0, "hy" to 1,
+        "ishape" to 0, "isize" to 1, "ispace" to 1, "labels" to 1, "lsize" to 1, "lweight" to 1, "lfont" to 0
     )
     private val ints = mutableStateMapOf<String, Int>().also { m -> defs.forEach { (k, d) -> m[k] = sp.getInt(k, d) } }
     fun i(k: String): Int = ints[k] ?: 0
@@ -144,6 +148,10 @@ class Store(private val app: Application) : AndroidViewModel(app) {
             .distinctBy { it.pkg }
             .sortedBy { it.label.lowercase() }
         if (list != apps) { iconCache.clear(); apps = list }
+        // load every icon in the background so sliding over the letters never has to wait for one
+        viewModelScope.launch(Dispatchers.Default) {
+            for (a in list) { try { loadIcon(app, a) } catch (e: Exception) { } }
+        }
     }
 
     fun recent(): List<AppItem> = apps.sortedByDescending { it.installed }.take(5)
