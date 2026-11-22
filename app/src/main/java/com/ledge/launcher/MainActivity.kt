@@ -239,6 +239,7 @@ fun Home(s: Store) {
                             HeaderBlock(s, pal, { locL.launch(Manifest.permission.ACCESS_COARSE_LOCATION) },
                                 { settingsOpen = true }, { verseOpen = true }, { todoOpen = true })
                         }
+                        item(key = "music") { if (!clean) MusicBox(pal) }
                         items(favApps, key = { "f" + it.pkg }) { a ->
                             FavRow(a, pal, icon, if (showN) Badges.counts[a.pkg] ?: 0 else 0,
                                 if (showN) Badges.last[a.pkg] else null, { launchApp(ctx, a) }) {
