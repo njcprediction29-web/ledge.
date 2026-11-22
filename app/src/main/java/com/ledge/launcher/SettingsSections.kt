@@ -129,11 +129,6 @@ fun SettingsSections(s: Store, pal: Pal, onPick: () -> Unit, onLoc: () -> Unit) 
             Text("☀ wallpapers look best with the Light theme. Your own photo is applied right away.", color = pal.sub, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
             Spacer(Modifier.size(10.dp))
             Chip("✓ Apply wallpaper", true, pal, Modifier.fillMaxWidth()) { s.setI("wp", draftWp); s.setI("wdir", draftDir) }
-            SectionLabel("Dim: ${s.i("dim")}%", pal)
-            Slider(
-                value = s.i("dim").toFloat(), onValueChange = { s.setI("dim", it.roundToInt()) }, valueRange = 0f..70f,
-                colors = SliderDefaults.colors(thumbColor = pal.accent, activeTrackColor = pal.accent)
-            )
         }
 
         Fold("🔷 Icons and labels", pal) {
