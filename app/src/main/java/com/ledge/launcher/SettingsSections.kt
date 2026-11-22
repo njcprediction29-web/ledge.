@@ -70,7 +70,8 @@ fun SettingsSections(s: Store, pal: Pal, onPick: () -> Unit, onLoc: () -> Unit) 
             Spacer(Modifier.size(6.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Chip("To-do", s.i("st") == 1, pal, Modifier.weight(1f)) { s.setI("st", 1 - s.i("st")) }
-                Chip("Notifications", s.i("sn") == 1, pal, Modifier.weight(2f)) { s.setI("sn", 1 - s.i("sn")) }
+                Chip("Calendar", s.i("hc") == 0, pal, Modifier.weight(1.3f)) { s.setI("hc", 1 - s.i("hc")) }
+                Chip("Notifications", s.i("sn") == 1, pal, Modifier.weight(1.7f)) { s.setI("sn", 1 - s.i("sn")) }
             }
         }
 
@@ -138,7 +139,7 @@ fun SettingsSections(s: Store, pal: Pal, onPick: () -> Unit, onLoc: () -> Unit) 
         Fold("🔷 Icons and labels", pal) {
             s.apps.firstOrNull()?.let { AppRow(it, pal, s.i("icon"), 0, null, {}, {}) }
             SectionLabel("Icon style", pal)
-            Seg(listOf("Color", "Black & white", "Simple"), s.i("icon"), pal) { s.setI("icon", it) }
+            Seg(listOf("Color", "B&W", "Simple"), s.i("icon"), pal) { s.setI("icon", it) }
             SectionLabel("Icon shape", pal)
             Seg(listOf("Default", "Circle", "Soft", "Square"), s.i("ishape"), pal) { s.setI("ishape", it) }
             SectionLabel("Icon size", pal)
