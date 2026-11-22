@@ -215,8 +215,9 @@ fun Home(s: Store) {
 
     Box(Modifier.fillMaxSize()) {
         // wallpaper
-        if (wp in PACKS.indices) {
-            Box(Modifier.fillMaxSize().then(wb).background(Brush.linearGradient(PACKS[wp].colors, Offset.Zero, Offset(1200f, 2600f))))
+        val wbrush = wallBrush(wp, s.i("wdir"))
+        if (wbrush != null) {
+            Box(Modifier.fillMaxSize().then(wb).background(wbrush))
         } else if (wp == 100) {
             s.wallBmp?.let { Image(it, null, Modifier.fillMaxSize().then(wb), contentScale = ContentScale.Crop) }
         }
@@ -432,12 +433,37 @@ fun SettingsBody(s: Store, pal: Pal, onPick: () -> Unit, onLoc: () -> Unit) {
         SectionLabel("Clock position", pal)
         Seg(listOf("Left", "Center"), s.i("calign"), pal) { s.setI("calign", it) }
 
-        SectionLabel("Wallpaper", pal)
+        SectionLabel("Wallpaper (pick, preview, then Apply)", pal)
+        var draftWp by remember { mutableIntStateOf(s.i("wp")) }
+        var draftDir by remember { mutableIntStateOf(s.i("wdir")) }
+        LaunchedEffect(s.i("wp")) { draftWp = s.i("wp") }
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { WallPreview(s, pal, draftWp, draftDir) }
+
+        SectionLabel("Gradients", pal)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Tile("System", null, s.i("wp") == -1, pal) { s.setI("wp", -1) }
-            PACKS.forEachIndexed { n, p -> Tile(p.name, Brush.verticalGradient(p.colors), s.i("wp") == n, pal) { s.setI("wp", n) } }
+            PACKS.forEachIndexed { n, p -> Tile(p.name, wallBrush(n, 1), draftWp == n, pal) { draftWp = n } }
+        }
+        SectionLabel("Solid colors", pal)
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            SOLIDS.forEachIndexed { n, c -> Tile(c.name, wallBrush(200 + n, 1), draftWp == 200 + n, pal) { draftWp = 200 + n } }
+        }
+        SectionLabel("System or your own photo", pal)
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Tile("System", null, draftWp == -1, pal) { draftWp = -1 }
             Tile("📷 My photo", null, s.i("wp") == 100, pal) { onPick() }
         }
+        SectionLabel("Gradient direction", pal)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("Diagonal", "Down", "Across").forEachIndexed { n, l -> Chip(l, draftDir == n, pal, Modifier.weight(1f)) { draftDir = n } }
+        }
+        Spacer(Modifier.size(6.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("Reverse", "Glow").forEachIndexed { k, l -> Chip(l, draftDir == k + 3, pal, Modifier.weight(1f)) { draftDir = k + 3 } }
+        }
+        Text("☀ wallpapers look best with the Light theme. Your own photo is applied right away.", color = pal.sub, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
+        Spacer(Modifier.size(10.dp))
+        Chip("✓ Apply wallpaper", true, pal, Modifier.fillMaxWidth()) { s.setI("wp", draftWp); s.setI("wdir", draftDir) }
+
         SectionLabel("Dim: ${s.i("dim")}%", pal)
         Slider(
             value = s.i("dim").toFloat(), onValueChange = { s.setI("dim", it.roundToInt()) }, valueRange = 0f..70f,
@@ -643,6 +669,36 @@ fun ClockTile(s: Store, pal: Pal, n: Int, sel: Boolean, onClick: () -> Unit) {
     ) {
         ClockFace(s, pal, "9:41", "FRI", styleIdx = n, scale = 0.5f, color = pal.text)
         Text(CLOCKS[n].name, color = pal.sub, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
+    }
+}
+
+@Composable
+fun WallPreview(s: Store, pal: Pal, wp: Int, dir: Int) {
+    val brush = wallBrush(wp, dir)
+    Box(Modifier.size(132.dp, 232.dp).clip(RoundedCornerShape(18.dp)).background(Color(0xFF15151A))) {
+        if (brush != null) {
+            Box(Modifier.fillMaxSize().background(brush))
+        } else if (wp == 100) {
+            s.wallBmp?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+        }
+        Box(Modifier.fillMaxSize().background(pal.scrim))
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = s.i("dim") / 100f * 0.65f)))
+        Column(Modifier.padding(14.dp)) {
+            Text("9:41", color = pal.text, fontSize = 22.sp, fontWeight = FontWeight.Light, style = SH)
+            Spacer(Modifier.height(10.dp))
+            repeat(3) { n ->
+                Box(
+                    Modifier.padding(vertical = 5.dp).height(10.dp).fillMaxWidth(0.7f - n * 0.1f)
+                        .clip(RoundedCornerShape(5.dp)).background(pal.text.copy(alpha = .5f))
+                )
+            }
+        }
+        if (wp == -1) {
+            Text(
+                "Your system wallpaper", color = Color.White, fontSize = 11.sp, style = SH,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp)
+            )
+        }
     }
 }
 
