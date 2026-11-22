@@ -162,7 +162,7 @@ class Store(private val app: Application) : AndroidViewModel(app) {
     private val defs = mapOf(
         "font" to 1, "theme" to 0, "accent" to 0, "icon" to 0, "side" to 0, "rh" to 1, "pos" to 1,
         "dim" to 30, "wp" to -1, "useF" to 0, "sw" to 1, "sb" to 1, "sv" to 1, "st" to 1, "sn" to 1,
-        "clean" to 0, "hy" to 1,
+        "clean" to 0, "hy" to 2,
         "ishape" to 0, "isize" to 1, "ispace" to 1, "labels" to 1, "lsize" to 1, "lweight" to 1, "lfont" to 0,
         "cstyle" to 0, "csize" to 1, "ccolor" to 0, "cweight" to 0, "calign" to 0,
         "wdir" to 0
@@ -182,24 +182,40 @@ class Store(private val app: Application) : AndroidViewModel(app) {
     var homeTick by mutableIntStateOf(0)
     var wallBmp by mutableStateOf<ImageBitmap?>(null); private set
 
+    // remembers when each app was installed so we do not ask Android again every time
+    private val installCache = ConcurrentHashMap<String, Long>()
+    @Volatile private var loading = false
+
     init { if (i("wp") == 100) loadWall() }
 
+    // Reads the app list in the background so coming back from an app never freezes the home screen
     fun load() {
-        val pm = app.packageManager
-        val q = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        val list = pm.queryIntentActivities(q, 0)
-            .map { r ->
-                val p = r.activityInfo.packageName
-                AppItem(r.loadLabel(pm).toString(), p, r.activityInfo.name,
-                    try { pm.getPackageInfo(p, 0).firstInstallTime } catch (e: Exception) { 0L })
-            }
-            .filter { it.pkg != app.packageName }
-            .distinctBy { it.pkg }
-            .sortedBy { it.label.lowercase() }
-        if (list != apps) { iconCache.clear(); apps = list }
-        // load every icon in the background so sliding over the letters never has to wait for one
+        if (loading) return
+        loading = true
         viewModelScope.launch(Dispatchers.Default) {
-            for (a in list) { try { loadIcon(app, a) } catch (e: Exception) { } }
+            try {
+                val pm = app.packageManager
+                val q = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+                val list = pm.queryIntentActivities(q, 0)
+                    .map { r ->
+                        val p = r.activityInfo.packageName
+                        val t = installCache.getOrPut(p) {
+                            try { pm.getPackageInfo(p, 0).firstInstallTime } catch (e: Exception) { 0L }
+                        }
+                        AppItem(r.loadLabel(pm).toString(), p, r.activityInfo.name, t)
+                    }
+                    .filter { it.pkg != app.packageName }
+                    .distinctBy { it.pkg }
+                    .sortedBy { it.label.lowercase() }
+                withContext(Dispatchers.Main) {
+                    if (list != apps) { iconCache.clear(); apps = list }
+                }
+                // load every icon in the background so sliding over the letters never has to wait for one
+                for (a in list) { try { loadIcon(app, a) } catch (e: Exception) { } }
+            } catch (e: Exception) {
+            } finally {
+                loading = false
+            }
         }
     }
 
