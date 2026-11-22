@@ -18,6 +18,8 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -72,8 +74,53 @@ val PACKS = listOf(
     Pack("Black", listOf(Color.Black, Color.Black)),
     Pack("Sand", listOf(Color(0xFFE9DCC3), Color(0xFFB89F7A))),
     Pack("Mono", listOf(Color(0xFF6B6B6B), Color(0xFF1A1A1A))),
-    Pack("Rose", listOf(Color(0xFFFFB3C1), Color(0xFF7A3B6E), Color(0xFF1C1030)))
+    Pack("Rose", listOf(Color(0xFFFFB3C1), Color(0xFF7A3B6E), Color(0xFF1C1030))),
+    Pack("Dusk", listOf(Color(0xFF2C3E70), Color(0xFF7B4B94), Color(0xFFE8837A))),
+    Pack("Peach", listOf(Color(0xFFFFD6B0), Color(0xFFFF9E9E), Color(0xFFB5517E))),
+    Pack("Lavender ☀", listOf(Color(0xFFF3E8FF), Color(0xFFC7B3F5), Color(0xFF8E7CC3))),
+    Pack("Mint ☀", listOf(Color(0xFFE3FBEA), Color(0xFF9AE3B8), Color(0xFF3FA796))),
+    Pack("Slate", listOf(Color(0xFF3A4452), Color(0xFF1E252E), Color(0xFF0C1015))),
+    Pack("Ember", listOf(Color(0xFFFFB347), Color(0xFFD9480F), Color(0xFF3B0A0A))),
+    Pack("Candy", listOf(Color(0xFFFF9ACB), Color(0xFFB388FF), Color(0xFF4F46E5))),
+    Pack("Arctic ☀", listOf(Color(0xFFEAF6FF), Color(0xFFA8D4F0), Color(0xFF5B9BC9))),
+    Pack("Cream ☀", listOf(Color(0xFFFFF8EC), Color(0xFFF1DDBA), Color(0xFFD6B98B))),
+    Pack("Emerald", listOf(Color(0xFF0F3D2E), Color(0xFF14664B), Color(0xFF061A14))),
+    Pack("Wine", listOf(Color(0xFF5A1A2D), Color(0xFF2A0E1E), Color(0xFF0F060C))),
+    Pack("Cosmos", listOf(Color(0xFF0B0B2B), Color(0xFF3A1C71), Color(0xFFD76D77))),
+    Pack("Steel", listOf(Color(0xFF8D99AE), Color(0xFF2B2D42), Color(0xFF14151F))),
+    Pack("Golden", listOf(Color(0xFFF6D365), Color(0xFFFDA085), Color(0xFF5E3A3A)))
 )
+
+// Solid-color wallpapers (wp = 200 + position in this list)
+class SolidWall(val name: String, val color: Color)
+val SOLIDS = listOf(
+    SolidWall("Charcoal", Color(0xFF1C1C1E)),
+    SolidWall("Navy", Color(0xFF0B1B3A)),
+    SolidWall("Forest", Color(0xFF133A2B)),
+    SolidWall("Wine", Color(0xFF4A1426)),
+    SolidWall("Plum", Color(0xFF3B1F4D)),
+    SolidWall("Teal", Color(0xFF0E4A52)),
+    SolidWall("Slate", Color(0xFF2F3A47)),
+    SolidWall("Rose", Color(0xFFE8A0B4)),
+    SolidWall("Sand ☀", Color(0xFFE6D8BF)),
+    SolidWall("Snow ☀", Color(0xFFF2F4F7))
+)
+
+// Gradient direction: 0 diagonal, 1 down, 2 across, 3 reverse diagonal, 4 glow from the middle
+fun wallBrush(wp: Int, dir: Int): Brush? {
+    val colors: List<Color> = when {
+        wp in PACKS.indices -> PACKS[wp].colors
+        wp >= 200 && wp - 200 in SOLIDS.indices -> SOLIDS[wp - 200].color.let { listOf(it, it) }
+        else -> return null
+    }
+    return when (dir) {
+        1 -> Brush.verticalGradient(colors)
+        2 -> Brush.horizontalGradient(colors)
+        3 -> Brush.linearGradient(colors, Offset(Float.POSITIVE_INFINITY, 0f), Offset(0f, Float.POSITIVE_INFINITY))
+        4 -> Brush.radialGradient(colors)
+        else -> Brush.linearGradient(colors, Offset.Zero, Offset.Infinite)
+    }
+}
 
 fun palette(theme: Int, accent: Int): Pal {
     val a = ACCENTS[accent.coerceIn(0, ACCENTS.lastIndex)]
@@ -117,7 +164,8 @@ class Store(private val app: Application) : AndroidViewModel(app) {
         "dim" to 30, "wp" to -1, "useF" to 0, "sw" to 1, "sb" to 1, "sv" to 1, "st" to 1, "sn" to 1,
         "clean" to 0, "hy" to 1,
         "ishape" to 0, "isize" to 1, "ispace" to 1, "labels" to 1, "lsize" to 1, "lweight" to 1, "lfont" to 0,
-        "cstyle" to 0, "csize" to 1, "ccolor" to 0, "cweight" to 0, "calign" to 0
+        "cstyle" to 0, "csize" to 1, "ccolor" to 0, "cweight" to 0, "calign" to 0,
+        "wdir" to 0
     )
     private val ints = mutableStateMapOf<String, Int>().also { m -> defs.forEach { (k, d) -> m[k] = sp.getInt(k, d) } }
     fun i(k: String): Int = ints[k] ?: 0
