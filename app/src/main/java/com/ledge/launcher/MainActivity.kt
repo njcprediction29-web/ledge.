@@ -625,6 +625,14 @@ fun AppRow(a: AppItem, pal: Pal, icon: Int, badge: Int, sub: String?, onOpen: ()
     }
 }
 
+fun letterOf(a: AppItem): Char = a.label.firstOrNull()?.takeIf { it.isLetter() }?.uppercaseChar() ?: '#'
+
+// Which letter group to show for the rail letter: the same letter, or the next one that has apps (like Niagara)
+fun groupFor(letters: List<Char>, hasHash: Boolean, c: Char): Char? {
+    if (c == '#') return if (hasHash) '#' else letters.lastOrNull()
+    return letters.firstOrNull { it >= c } ?: letters.lastOrNull()
+}
+
 // Favorites row: same as AppRow, nudged a little toward the middle of the screen
 @Composable
 fun FavRow(a: AppItem, pal: Pal, icon: Int, badge: Int, sub: String?, onOpen: () -> Unit, onMenu: () -> Unit) {
