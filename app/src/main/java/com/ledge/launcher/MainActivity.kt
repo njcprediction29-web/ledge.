@@ -2,6 +2,7 @@ package com.ledge.launcher
 
 import android.Manifest
 import android.app.Activity
+import android.app.ActivityOptions
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -23,6 +24,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
@@ -99,9 +101,8 @@ class MainActivity : ComponentActivity() {
 }
 
 fun go(ctx: Context, i: Intent) {
-    try { ctx.startActivity(i) } catch (e: Exception) { }
-}
-
+    
+try { ctx.startActivity(i, if (reducedMotion(ctx)) null else ActivityOptions.makeCustomAnimation(ctx, android.R.anim.fade_in, android.R.anim.fade_out).toBundle()) } catch (e: Exception) { }
 fun launchApp(ctx: Context, a: AppItem) = go(
     ctx,
     Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setClassName(a.pkg, a.cls)
