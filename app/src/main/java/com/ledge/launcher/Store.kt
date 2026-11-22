@@ -116,7 +116,8 @@ class Store(private val app: Application) : AndroidViewModel(app) {
         "font" to 1, "theme" to 0, "accent" to 0, "icon" to 0, "side" to 0, "rh" to 1, "pos" to 1,
         "dim" to 30, "wp" to -1, "useF" to 0, "sw" to 1, "sb" to 1, "sv" to 1, "st" to 1, "sn" to 1,
         "clean" to 0, "hy" to 1,
-        "ishape" to 0, "isize" to 1, "ispace" to 1, "labels" to 1, "lsize" to 1, "lweight" to 1, "lfont" to 0
+        "ishape" to 0, "isize" to 1, "ispace" to 1, "labels" to 1, "lsize" to 1, "lweight" to 1, "lfont" to 0,
+        "cstyle" to 0, "csize" to 1, "ccolor" to 0, "cweight" to 0, "calign" to 0
     )
     private val ints = mutableStateMapOf<String, Int>().also { m -> defs.forEach { (k, d) -> m[k] = sp.getInt(k, d) } }
     fun i(k: String): Int = ints[k] ?: 0
