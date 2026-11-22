@@ -405,6 +405,33 @@ fun SettingsBody(s: Store, pal: Pal, onPick: () -> Unit, onLoc: () -> Unit) {
         SectionLabel("Home position (clock + favorites)", pal)
         Seg(listOf("High", "Medium", "Low"), s.i("hy"), pal) { s.setI("hy", it) }
 
+        SectionLabel("Clock (live preview)", pal)
+        val clockNow = remember { clockStrings(ctx, System.currentTimeMillis()) }
+        Box(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(pal.text.copy(alpha = .12f)).padding(16.dp),
+            contentAlignment = if (s.i("calign") == 1) Alignment.Center else Alignment.CenterStart
+        ) { ClockFace(s, pal, clockNow.first, clockNow.second) }
+        SectionLabel("Clock style (tap one)", pal)
+        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            CLOCKS.forEachIndexed { n, _ -> ClockTile(s, pal, n, s.i("cstyle") == n) { s.setI("cstyle", n) } }
+        }
+        SectionLabel("Clock size", pal)
+        Seg(listOf("Small", "Medium", "Large", "XL"), s.i("csize"), pal) { s.setI("csize", it) }
+        SectionLabel("Clock weight", pal)
+        Seg(listOf("Style", "Light", "Regular", "Bold"), s.i("cweight"), pal) { s.setI("cweight", it) }
+        SectionLabel("Clock color", pal)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            for (n in 0..6) {
+                Box(
+                    Modifier.size(28.dp).clip(CircleShape).background(clockColor(n, pal))
+                        .then(if (s.i("ccolor") == n) Modifier.border(3.dp, pal.accent, CircleShape) else Modifier.border(1.dp, pal.sub, CircleShape))
+                        .clickable { s.setI("ccolor", n) }
+                )
+            }
+        }
+        SectionLabel("Clock position", pal)
+        Seg(listOf("Left", "Center"), s.i("calign"), pal) { s.setI("calign", it) }
+
         SectionLabel("Wallpaper", pal)
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Tile("System", null, s.i("wp") == -1, pal) { s.setI("wp", -1) }
@@ -519,11 +546,13 @@ fun HeaderBlock(s: Store, pal: Pal, onWeather: () -> Unit, onSettings: () -> Uni
     val weather = s.weatherText()
     val clean = s.i("clean") == 1
 
-    Column(Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
-        Text(
-            time, color = pal.text, fontSize = 34.sp, fontWeight = FontWeight.Light, style = SH,
-            modifier = Modifier.combinedClickable(onClick = {}, onLongClick = onSettings)
-        )
+    val weekday = SimpleDateFormat("EEE", Locale.getDefault()).format(Date(now)).uppercase()
+
+    Column(
+        Modifier.fillMaxWidth().padding(bottom = 6.dp),
+        horizontalAlignment = if (s.i("calign") == 1) Alignment.CenterHorizontally else Alignment.Start
+    ) {
+        ClockFace(s, pal, time, weekday, onLong = onSettings)
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(date, color = pal.sub, fontSize = 12.sp, style = SH)
             if (s.i("sw") == 1) {
@@ -540,6 +569,80 @@ fun HeaderBlock(s: Store, pal: Pal, onWeather: () -> Unit, onSettings: () -> Uni
                 if (s.i("st") == 1) SmallChip("✓ ${s.todos.size} task${if (s.todos.size == 1) "" else "s"}", pal, onTodo)
             }
         }
+    }
+}
+
+class ClockStyle(
+    val name: String, val family: FontFamily, val weight: FontWeight,
+    val spacing: Float, val size: Float, val weekday: Boolean = false
+)
+
+val CLOCKS = listOf(
+    ClockStyle("Classic", FontFamily.Default, FontWeight.Light, 0f, 34f),
+    ClockStyle("Thin", FontFamily.Default, FontWeight.Thin, 2f, 50f),
+    ClockStyle("Bold", FontFamily.Default, FontWeight.Black, 0f, 42f),
+    ClockStyle("Elegant", FontFamily.Serif, FontWeight.Normal, 1f, 40f),
+    ClockStyle("Digital", FontFamily.Monospace, FontWeight.Normal, 2f, 36f),
+    ClockStyle("Future", FontFamily.Monospace, FontWeight.Light, 8f, 34f),
+    ClockStyle("Script", FontFamily.Cursive, FontWeight.Normal, 0f, 46f),
+    ClockStyle("Weekday", FontFamily.Default, FontWeight.Thin, 10f, 56f, true)
+)
+
+fun clockColor(i: Int, pal: Pal): Color = when (i) {
+    1 -> pal.accent
+    2 -> Color.White
+    3 -> Color(0xFFFFD166)
+    4 -> Color(0xFF7DE0B0)
+    5 -> Color(0xFFFF8FA3)
+    6 -> Color(0xFFB9A4FF)
+    else -> pal.text
+}
+
+fun clockStrings(ctx: Context, now: Long): Pair<String, String> {
+    val pattern = if (DateFormat.is24HourFormat(ctx)) "HH:mm" else "h:mm"
+    return SimpleDateFormat(pattern, Locale.getDefault()).format(Date(now)) to
+        SimpleDateFormat("EEE", Locale.getDefault()).format(Date(now)).uppercase()
+}
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun ClockFace(
+    s: Store, pal: Pal, time: String, weekday: String, modifier: Modifier = Modifier,
+    styleIdx: Int = s.i("cstyle"), scale: Float? = null, color: Color? = null, onLong: (() -> Unit)? = null
+) {
+    val cs = CLOCKS[styleIdx.coerceIn(0, CLOCKS.lastIndex)]
+    val f = scale ?: floatArrayOf(0.8f, 1f, 1.25f, 1.5f)[s.i("csize").coerceIn(0, 3)]
+    val w = when (s.i("cweight")) {
+        1 -> FontWeight.Light
+        2 -> FontWeight.Normal
+        3 -> FontWeight.Bold
+        else -> cs.weight
+    }
+    val col = color ?: clockColor(s.i("ccolor"), pal)
+    val mod = if (onLong != null) modifier.combinedClickable(onClick = {}, onLongClick = onLong) else modifier
+    if (cs.weekday) {
+        Column(mod, horizontalAlignment = if (s.i("calign") == 1) Alignment.CenterHorizontally else Alignment.Start) {
+            Text(weekday, color = col, fontSize = (cs.size * f).sp, fontWeight = w, letterSpacing = (cs.spacing * f).sp, style = SH)
+            Text(time, color = col, fontSize = (14f * f).sp, fontWeight = FontWeight.Normal, letterSpacing = (2f * f).sp, style = SH)
+        }
+    } else {
+        Text(
+            time, color = col, fontSize = (cs.size * f).sp, fontWeight = w, fontFamily = cs.family,
+            letterSpacing = (cs.spacing * f).sp, style = SH, modifier = mod
+        )
+    }
+}
+
+@Composable
+fun ClockTile(s: Store, pal: Pal, n: Int, sel: Boolean, onClick: () -> Unit) {
+    Column(
+        Modifier.size(92.dp, 84.dp).clip(RoundedCornerShape(14.dp)).background(pal.text.copy(alpha = .12f))
+            .then(if (sel) Modifier.border(3.dp, pal.accent, RoundedCornerShape(14.dp)) else Modifier)
+            .clickable(onClick = onClick),
+        horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center
+    ) {
+        ClockFace(s, pal, "9:41", "FRI", styleIdx = n, scale = 0.5f, color = pal.text)
+        Text(CLOCKS[n].name, color = pal.sub, fontSize = 10.sp, modifier = Modifier.padding(top = 4.dp))
     }
 }
 
