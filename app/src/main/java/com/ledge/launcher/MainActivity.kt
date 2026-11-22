@@ -221,15 +221,13 @@ fun Home(s: Store) {
     val wb = if (overlay) Modifier.blur(18.dp, BlurredEdgeTreatment.Unbounded) else Modifier
 
     Box(Modifier.fillMaxSize()) {
-        // wallpaper
+        // wallpaper: drawn exactly as it is, with NO dark layer on top of it
         val wbrush = wallBrush(wp, s.i("wdir"))
         if (wbrush != null) {
             Box(Modifier.fillMaxSize().then(wb).background(wbrush))
         } else if (wp == 100) {
             s.wallBmp?.let { Image(it, null, Modifier.fillMaxSize().then(wb), contentScale = ContentScale.Crop) }
         }
-        Box(Modifier.fillMaxSize().background(pal.scrim))
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = s.i("dim") / 100f * 0.65f)))
 
         Box(
             Modifier.fillMaxSize()
@@ -302,7 +300,13 @@ fun Home(s: Store) {
 
             val h = floatArrayOf(0.6f, 0.72f, 0.84f)[s.i("rh").coerceIn(0, 2)]
             val bias = floatArrayOf(-1f, 0f, 1f)[s.i("pos").coerceIn(0, 2)]
-            Box(Modifier.fillMaxSize().padding(top = top + 56.dp, bottom = bottom + 40.dp)) {
+            // The extra 16.dp on the side moves the A-Z rail a little toward the middle of the screen
+            Box(
+                Modifier.fillMaxSize().padding(
+                    top = top + 56.dp, bottom = bottom + 40.dp,
+                    start = if (left) 16.dp else 0.dp, end = if (left) 0.dp else 16.dp
+                )
+            ) {
                 Rail(
                     LETTER_SP[s.i("font").coerceIn(0, 2)], pal, left, active,
                     Modifier.align(BiasAlignment(if (left) -1f else 1f, bias)).fillMaxHeight(h),
@@ -536,8 +540,7 @@ fun WallPreview(s: Store, pal: Pal, wp: Int, dir: Int) {
         } else if (wp == 100) {
             s.wallBmp?.let { Image(it, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
         }
-        Box(Modifier.fillMaxSize().background(pal.scrim))
-        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = s.i("dim") / 100f * 0.65f)))
+        // no dark layer here either: the preview shows the wallpaper as it really looks
         Column(Modifier.padding(14.dp)) {
             Text("9:41", color = pal.text, fontSize = 22.sp, fontWeight = FontWeight.Light, style = SH)
             Spacer(Modifier.height(10.dp))
