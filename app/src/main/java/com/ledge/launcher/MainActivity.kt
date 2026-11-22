@@ -6,8 +6,6 @@ import android.app.ActivityOptions
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.hardware.camera2.CameraCharacteristics
-import android.hardware.camera2.CameraManager
 import android.net.Uri
 import android.os.BatteryManager
 import android.os.Build
@@ -37,8 +35,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -101,8 +97,15 @@ class MainActivity : ComponentActivity() {
 }
 
 fun go(ctx: Context, i: Intent) {
-    
-try { ctx.startActivity(i, if (reducedMotion(ctx)) null else ActivityOptions.makeCustomAnimation(ctx, android.R.anim.fade_in, android.R.anim.fade_out).toBundle()) } catch (e: Exception) { }
+    try {
+        ctx.startActivity(
+            i,
+            if (reducedMotion(ctx)) null
+            else ActivityOptions.makeCustomAnimation(ctx, android.R.anim.fade_in, android.R.anim.fade_out).toBundle()
+        )
+    } catch (e: Exception) { }
+}
+
 fun launchApp(ctx: Context, a: AppItem) = go(
     ctx,
     Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setClassName(a.pkg, a.cls)
@@ -147,6 +150,10 @@ fun Home(s: Store) {
     val pal = palette(s.i("theme"), s.i("accent"))
     val haptic = LocalHapticFeedback.current
     val focus = LocalFocusManager.current
+    val appear = remember { Animatable(1f) }
+    LaunchedEffect(s.homeTick) {
+        if (s.homeTick > 0 && !reducedMotion(ctx)) { appear.snapTo(0.8f); appear.animateTo(1f, tween(260)) }
+    }
 
     var menuApp by remember { mutableStateOf<AppItem?>(null) }
     var settingsOpen by remember { mutableStateOf(false) }
@@ -201,8 +208,7 @@ fun Home(s: Store) {
     val allTop = (LocalConfiguration.current.screenHeightDp * 0.27f).dp
     val shownGroup = from?.let { groupFor(groupLetters, groups.containsKey('#'), it) }
     val homeState = rememberLazyListState()
-    val allState = rememberLazyListState()
-    LaunchedEffect(shownGroup) { allState.scrollToItem(0) }
+    val allState = remember(shownGroup) { LazyListState() }
     val favApps = s.favs.mapNotNull { p -> vis.firstOrNull { it.pkg == p } }
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -225,7 +231,15 @@ fun Home(s: Store) {
         Box(Modifier.fillMaxSize().background(pal.scrim))
         Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = s.i("dim") / 100f * 0.65f)))
 
-        Box(Modifier.fillMaxSize().then(if (overlay) Modifier.blur(18.dp) else Modifier)) {
+        Box(
+            Modifier.fillMaxSize()
+                .graphicsLayer {
+                    alpha = appear.value
+                    scaleX = 0.9f + 0.1f * appear.value
+                    scaleY = 0.9f + 0.1f * appear.value
+                }
+                .then(if (overlay) Modifier.blur(18.dp) else Modifier)
+        ) {
             Crossfade(targetState = from == null, animationSpec = tween(120), label = "homeOrAll") { isHome ->
                 if (isHome) {
                     LazyColumn(
@@ -389,170 +403,9 @@ fun Home(s: Store) {
 
         if (settingsOpen) {
             Popup(pal, { settingsOpen = false }) {
-                SettingsBody(s, pal, { pick.launch("image/*") }, { locL.launch(Manifest.permission.ACCESS_COARSE_LOCATION) })
+                SettingsSections(s, pal, { pick.launch("image/*") }, { locL.launch(Manifest.permission.ACCESS_COARSE_LOCATION) })
             }
         }
-    }
-}
-
-@Composable
-fun SettingsBody(s: Store, pal: Pal, onPick: () -> Unit, onLoc: () -> Unit) {
-    val ctx = LocalContext.current
-    var torch by remember { mutableStateOf(false) }
-    Column(Modifier.padding(horizontal = 22.dp)) {
-        Text("Lumen settings", color = pal.text, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-
-        SectionLabel("Clean Mode", pal)
-        Seg(listOf("Off", "On"), s.i("clean"), pal) { s.setI("clean", it) }
-
-        SectionLabel("Home position (clock + favorites)", pal)
-        Seg(listOf("High", "Medium", "Low"), s.i("hy"), pal) { s.setI("hy", it) }
-
-        SectionLabel("Clock (live preview)", pal)
-        val clockNow = remember { clockStrings(ctx, System.currentTimeMillis()) }
-        Box(
-            Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(pal.text.copy(alpha = .12f)).padding(16.dp),
-            contentAlignment = if (s.i("calign") == 1) Alignment.Center else Alignment.CenterStart
-        ) { ClockFace(s, pal, clockNow.first, clockNow.second) }
-        SectionLabel("Clock style (tap one)", pal)
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            CLOCKS.forEachIndexed { n, _ -> ClockTile(s, pal, n, s.i("cstyle") == n) { s.setI("cstyle", n) } }
-        }
-        SectionLabel("Clock size", pal)
-        Seg(listOf("Small", "Medium", "Large", "XL"), s.i("csize"), pal) { s.setI("csize", it) }
-        SectionLabel("Clock weight", pal)
-        Seg(listOf("Style", "Light", "Regular", "Bold"), s.i("cweight"), pal) { s.setI("cweight", it) }
-        SectionLabel("Clock color", pal)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            for (n in 0..6) {
-                Box(
-                    Modifier.size(28.dp).clip(CircleShape).background(clockColor(n, pal))
-                        .then(if (s.i("ccolor") == n) Modifier.border(3.dp, pal.accent, CircleShape) else Modifier.border(1.dp, pal.sub, CircleShape))
-                        .clickable { s.setI("ccolor", n) }
-                )
-            }
-        }
-        SectionLabel("Clock position", pal)
-        Seg(listOf("Left", "Center"), s.i("calign"), pal) { s.setI("calign", it) }
-
-        SectionLabel("Wallpaper (pick, preview, then Apply)", pal)
-        var draftWp by remember { mutableIntStateOf(s.i("wp")) }
-        var draftDir by remember { mutableIntStateOf(s.i("wdir")) }
-        LaunchedEffect(s.i("wp")) { draftWp = s.i("wp") }
-        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { WallPreview(s, pal, draftWp, draftDir) }
-
-        SectionLabel("Gradients", pal)
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            PACKS.forEachIndexed { n, p -> Tile(p.name, wallBrush(n, 1), draftWp == n, pal) { draftWp = n } }
-        }
-        SectionLabel("Solid colors", pal)
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            SOLIDS.forEachIndexed { n, c -> Tile(c.name, wallBrush(200 + n, 1), draftWp == 200 + n, pal) { draftWp = 200 + n } }
-        }
-        SectionLabel("System or your own photo", pal)
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Tile("System", null, draftWp == -1, pal) { draftWp = -1 }
-            Tile("📷 My photo", null, s.i("wp") == 100, pal) { onPick() }
-        }
-        SectionLabel("Gradient direction", pal)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("Diagonal", "Down", "Across").forEachIndexed { n, l -> Chip(l, draftDir == n, pal, Modifier.weight(1f)) { draftDir = n } }
-        }
-        Spacer(Modifier.size(6.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("Reverse", "Glow").forEachIndexed { k, l -> Chip(l, draftDir == k + 3, pal, Modifier.weight(1f)) { draftDir = k + 3 } }
-        }
-        Text("☀ wallpapers look best with the Light theme. Your own photo is applied right away.", color = pal.sub, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
-        Spacer(Modifier.size(10.dp))
-        Chip("✓ Apply wallpaper", true, pal, Modifier.fillMaxWidth()) { s.setI("wp", draftWp); s.setI("wdir", draftDir) }
-
-        SectionLabel("Dim: ${s.i("dim")}%", pal)
-        Slider(
-            value = s.i("dim").toFloat(), onValueChange = { s.setI("dim", it.roundToInt()) }, valueRange = 0f..70f,
-            colors = SliderDefaults.colors(thumbColor = pal.accent, activeTrackColor = pal.accent)
-        )
-
-        SectionLabel("Icons and labels (preview)", pal)
-        s.apps.firstOrNull()?.let { AppRow(it, pal, s.i("icon"), 0, null, {}, {}) }
-
-        SectionLabel("Icon style", pal)
-        Seg(listOf("Color", "Black & white", "Simple"), s.i("icon"), pal) { s.setI("icon", it) }
-        SectionLabel("Icon shape", pal)
-        Seg(listOf("Default", "Circle", "Soft", "Square"), s.i("ishape"), pal) { s.setI("ishape", it) }
-        SectionLabel("Icon size", pal)
-        Seg(listOf("Small", "Medium", "Large"), s.i("isize"), pal) { s.setI("isize", it) }
-        SectionLabel("Icon spacing", pal)
-        Seg(listOf("Tight", "Normal", "Roomy"), s.i("ispace"), pal) { s.setI("ispace", it) }
-        SectionLabel("App labels", pal)
-        Seg(listOf("Hidden", "Shown"), s.i("labels"), pal) { s.setI("labels", it) }
-        SectionLabel("Label size", pal)
-        Seg(listOf("Small", "Medium", "Large"), s.i("lsize"), pal) { s.setI("lsize", it) }
-        SectionLabel("Label weight", pal)
-        Seg(listOf("Light", "Normal", "Bold"), s.i("lweight"), pal) { s.setI("lweight", it) }
-        SectionLabel("Label font", pal)
-        Seg(listOf("Default", "Serif", "Mono", "Script"), s.i("lfont"), pal) { s.setI("lfont", it) }
-
-        SectionLabel("Show on home", pal)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Chip("Weather", s.i("sw") == 1, pal, Modifier.weight(1f)) { s.setI("sw", 1 - s.i("sw")) }
-            Chip("Battery", s.i("sb") == 1, pal, Modifier.weight(1f)) { s.setI("sb", 1 - s.i("sb")) }
-            Chip("Verse", s.i("sv") == 1, pal, Modifier.weight(1f)) { s.setI("sv", 1 - s.i("sv")) }
-        }
-        Spacer(Modifier.size(6.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Chip("To-do", s.i("st") == 1, pal, Modifier.weight(1f)) { s.setI("st", 1 - s.i("st")) }
-            Chip("Notifications", s.i("sn") == 1, pal, Modifier.weight(2f)) { s.setI("sn", 1 - s.i("sn")) }
-        }
-
-        SectionLabel("A–Z letter size", pal)
-        Seg(listOf("Small", "Medium", "Large"), s.i("font"), pal) { s.setI("font", it) }
-        SectionLabel("A–Z side", pal)
-        Seg(listOf("Right", "Left"), s.i("side"), pal) { s.setI("side", it) }
-        SectionLabel("A–Z height", pal)
-        Seg(listOf("Short", "Medium", "Tall"), s.i("rh"), pal) { s.setI("rh", it) }
-        SectionLabel("A–Z position", pal)
-        Seg(listOf("Up", "Middle", "Down"), s.i("pos"), pal) { s.setI("pos", it) }
-
-        SectionLabel("Theme", pal)
-        Seg(listOf("Dark", "Light", "Black"), s.i("theme"), pal) { s.setI("theme", it) }
-        SectionLabel("Accent color", pal)
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ACCENTS.forEachIndexed { n, c ->
-                Box(
-                    Modifier.size(36.dp).clip(CircleShape).background(c)
-                        .then(if (s.i("accent") == n) Modifier.border(3.dp, pal.text, CircleShape) else Modifier)
-                        .clickable { s.setI("accent", n) }
-                )
-            }
-        }
-        SectionLabel("Temperature", pal)
-        Seg(listOf("°C", "°F"), s.i("useF"), pal) { s.setI("useF", it) }
-
-        SectionLabel("Quick settings", pal)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Chip("📶 Wi-Fi", false, pal, Modifier.weight(1f)) { go(ctx, Intent(Settings.Panel.ACTION_INTERNET_CONNECTIVITY)) }
-            Chip("🔵 BT", false, pal, Modifier.weight(1f)) { go(ctx, Intent(Settings.ACTION_BLUETOOTH_SETTINGS)) }
-            Chip("🔦 Light", torch, pal, Modifier.weight(1f)) {
-                try {
-                    val cm = ctx.getSystemService(CameraManager::class.java)
-                    val id = cm.cameraIdList.firstOrNull { cm.getCameraCharacteristics(it).get(CameraCharacteristics.FLASH_INFO_AVAILABLE) == true }
-                    if (id != null) { torch = !torch; cm.setTorchMode(id, torch) }
-                } catch (e: Exception) { torch = false }
-            }
-        }
-
-        SectionLabel("Permissions", pal)
-        MenuRow("📍", "Allow location (weather)", pal) { onLoc() }
-        MenuRow("🔔", "Turn on notification badges", pal) { go(ctx, Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
-        Text(
-            "If Android says \"restricted setting\": Settings > Apps > Lumen > ⋮ (top right) > Allow restricted settings, then try again.",
-            color = pal.sub, fontSize = 12.sp
-        )
-
-        val hiddenApps = s.apps.filter { it.pkg in s.hidden }
-        SectionLabel("Hidden apps (tap to unhide)", pal)
-        if (hiddenApps.isEmpty()) Text("None. Long-press an app and choose Hide app.", color = pal.sub, fontSize = 14.sp)
-        hiddenApps.forEach { a -> MenuRow("👁️", a.label, pal) { s.toggleHidden(a.pkg) } }
     }
 }
 
