@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
@@ -121,7 +122,7 @@ fun Vinyl(art: Bitmap?, playing: Boolean, pal: Pal) {
 }
 
 @Composable
-fun MusicBox(pal: Pal) {
+fun MusicPlayer(pal: Pal) {
     val ctx = LocalContext.current
     val info by produceState<MusicInfo?>(null) {
         var lastKey = ""
@@ -149,8 +150,7 @@ fun MusicBox(pal: Pal) {
     }
     val m = info ?: return
     Row(
-        Modifier.padding(top = 10.dp).fillMaxWidth().clip(RoundedCornerShape(26.dp))
-            .background(pal.text.copy(alpha = .14f)).padding(10.dp),
+        Modifier.padding(top = 10.dp).fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Vinyl(m.art, m.playing, pal)
@@ -163,18 +163,51 @@ fun MusicBox(pal: Pal) {
                     } catch (e: Exception) { }
                 }
             ) {
-                Text(m.title, color = pal.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (m.artist.isNotBlank()) Text(m.artist, color = pal.sub, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(m.title, color = pal.text, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis, style = SH)
+                if (m.artist.isNotBlank()) Text(m.artist, color = pal.sub, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, style = SH)
             }
-            Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("⏮", fontSize = 22.sp, modifier = Modifier.clickable { m.ctl.transportControls.skipToPrevious() }.padding(horizontal = 10.dp, vertical = 6.dp))
-                Text(
-                    if (m.playing) "⏸" else "▶", fontSize = 24.sp, color = pal.accent,
-                    modifier = Modifier.clickable { if (m.playing) m.ctl.transportControls.pause() else m.ctl.transportControls.play() }
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
-                )
-                Text("⏭", fontSize = 22.sp, modifier = Modifier.clickable { m.ctl.transportControls.skipToNext() }.padding(horizontal = 10.dp, vertical = 6.dp))
+            Row(Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                CtlIcon(Ctl.PREV, pal.text) { m.ctl.transportControls.skipToPrevious() }
+                CtlIcon(if (m.playing) Ctl.PAUSE else Ctl.PLAY, pal.accent) {
+                    if (m.playing) m.ctl.transportControls.pause() else m.ctl.transportControls.play()
+                }
+                CtlIcon(Ctl.NEXT, pal.text) { m.ctl.transportControls.skipToNext() }
             }
         }
+    }
+}
+
+enum class Ctl { PREV, PLAY, PAUSE, NEXT }
+
+// Plain shapes: triangle left = previous, triangle right = next / play, two bars = pause
+@Composable
+fun CtlIcon(kind: Ctl, color: Color, onClick: () -> Unit) {
+    Canvas(Modifier.size(46.dp).clickable(onClick = onClick).padding(13.dp)) {
+        val w = size.width
+        val h = size.height
+        when (kind) {
+            Ctl.PREV -> {
+                val p = Path().apply { moveTo(w, 0f); lineTo(0f, h / 2f); lineTo(w, h); close() }
+                drawPath(p, color)
+            }
+            Ctl.NEXT, Ctl.PLAY -> {
+                val p = Path().apply { moveTo(0f, 0f); lineTo(w, h / 2f); lineTo(0f, h); close() }
+                drawPath(p, color)
+            }
+            Ctl.PAUSE -> {
+                drawRect(color, Offset(w * 0.08f, 0f), Size(w * 0.30f, h))
+                drawRect(color, Offset(w * 0.62f, 0f), Size(w * 0.30f, h))
+            }
+        }
+    }
+}
+
+// What the home screen shows under the clock: today's events, then the music player
+@Composable
+fun MusicBox(pal: Pal) {
+    val s = LocalStore.current
+    Column {
+        if (s.i("hc") == 0) CalendarBox(pal)
+        MusicPlayer(pal)
     }
 }
