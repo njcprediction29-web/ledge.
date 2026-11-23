@@ -151,6 +151,7 @@ fun Home(s: Store) {
     val haptic = LocalHapticFeedback.current
     val focus = LocalFocusManager.current
     val appear = remember { Animatable(1f) }
+    val drag = remember { DragState() }
     LaunchedEffect(s.homeTick) {
         if (s.homeTick > 0 && !reducedMotion(ctx)) { appear.snapTo(0.8f); appear.animateTo(1f, tween(260)) }
     }
@@ -253,11 +254,14 @@ fun Home(s: Store) {
                                 { settingsOpen = true }, { verseOpen = true }, { todoOpen = true })
                         }
                         item(key = "music") { if (!clean) MusicBox(pal) }
+                        // Favorites: tap to open, long-press and drag to reorder, long-press and let go for options
                         items(favApps, key = { "f" + it.pkg }) { a ->
-                            FavRow(a, pal, icon, if (showN) Badges.counts[a.pkg] ?: 0 else 0,
-                                if (showN) Badges.last[a.pkg] else null, { launchApp(ctx, a) }) {
-                                haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuApp = a
-                            }
+                            DragFavRow(
+                                a, pal, icon, if (showN) Badges.counts[a.pkg] ?: 0 else 0,
+                                if (showN) Badges.last[a.pkg] else null,
+                                drag, homeState, favApps, s,
+                                { launchApp(ctx, a) }, { menuApp = a }
+                            )
                         }
                         if (!clean) {
                             item(key = "hint") {
@@ -610,7 +614,7 @@ fun AppIcon(a: AppItem, style: Int, pal: Pal, size: androidx.compose.ui.unit.Dp?
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun AppRow(a: AppItem, pal: Pal, icon: Int, badge: Int, sub: String?, onOpen: () -> Unit, onMenu: () -> Unit) {
+fun AppRow(a: AppItem, pal: Pal, icon: Int, badge: Int, sub: String?, onOpen: (() -> Unit)?, onMenu: (() -> Unit)?) {
     val st = LocalStore.current
     val vp = floatArrayOf(4f, 8f, 14f)[st.i("ispace").coerceIn(0, 2)].dp
     val labelSp = floatArrayOf(15f, 17f, 19f)[st.i("lsize").coerceIn(0, 2)].sp
@@ -619,7 +623,8 @@ fun AppRow(a: AppItem, pal: Pal, icon: Int, badge: Int, sub: String?, onOpen: ()
     val showLabel = st.i("labels") == 1
     Row(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
-            .combinedClickable(onClick = onOpen, onLongClick = onMenu).padding(vertical = vp, horizontal = 4.dp),
+            .then(if (onOpen != null) Modifier.combinedClickable(onClick = onOpen, onLongClick = onMenu) else Modifier)
+            .padding(vertical = vp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         AppIcon(a, icon, pal)
@@ -652,7 +657,7 @@ fun groupFor(letters: List<Char>, hasHash: Boolean, c: Char): Char? {
 
 // Favorites row: same as AppRow, nudged a little toward the middle of the screen
 @Composable
-fun FavRow(a: AppItem, pal: Pal, icon: Int, badge: Int, sub: String?, onOpen: () -> Unit, onMenu: () -> Unit) {
+fun FavRow(a: AppItem, pal: Pal, icon: Int, badge: Int, sub: String?, onOpen: (() -> Unit)?, onMenu: (() -> Unit)?) {
     Box(Modifier.padding(start = 28.dp)) { AppRow(a, pal, icon, badge, sub, onOpen, onMenu) }
 }
 
