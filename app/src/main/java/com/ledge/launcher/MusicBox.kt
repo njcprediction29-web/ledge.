@@ -97,7 +97,7 @@ fun rememberMotion(playing: Boolean, degreesPerSecond: Float): State<Float> {
     LaunchedEffect(playing) {
         var last = 0L
         while ((playing && !still) || speed > 0.002f) {
-            withInfiniteAnimationFrameNanos { t ->
+            withFrameNanos { t ->
                 if (last != 0L) {
                     pos.floatValue = (pos.floatValue + (t - last) / 1_000_000_000f * degreesPerSecond * speed) % 360f
                 }
