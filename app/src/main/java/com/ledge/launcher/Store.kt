@@ -165,7 +165,7 @@ class Store(private val app: Application) : AndroidViewModel(app) {
         "clean" to 0, "hy" to 2,
         "ishape" to 0, "isize" to 1, "ispace" to 1, "labels" to 1, "lsize" to 1, "lweight" to 1, "lfont" to 0,
         "cstyle" to 0, "csize" to 1, "ccolor" to 0, "cweight" to 0, "calign" to 0,
-        "wdir" to 0, "wmode" to 0, "wh" to 1, "hm" to 0, "hf" to 0
+        "wdir" to 0, "wmode" to 0, "wh" to 1, "hm" to 0, "hf" to 0, "hp" to 0
     )
     private val ints = mutableStateMapOf<String, Int>().also { m -> defs.forEach { (k, d) -> m[k] = sp.getInt(k, d) } }
     fun i(k: String): Int = ints[k] ?: 0
@@ -177,6 +177,8 @@ class Store(private val app: Application) : AndroidViewModel(app) {
     // Order of the home screen widgets: clock, calendar, music, favs (changed by dragging in settings)
     var widgetOrder by mutableStateOf(loadWidgetOrder()); private set
     var todos by mutableStateOf(sp.getString("todos", "")!!.split("\u0001").filter { it.isNotEmpty() }); private set
+    // Plan Your Day: each item is "minutes since midnight|text", sorted by time, repeats every day
+    var plan by mutableStateOf(sp.getString("plan", "")!!.split("\u0001").filter { it.isNotEmpty() }); private set
     var vFav by mutableStateOf(sp.getStringSet("vfav", emptySet())!!.toSet()); private set
     var vOff by mutableIntStateOf(0)
     var tempC by mutableStateOf<Double?>(null); private set
@@ -246,7 +248,7 @@ class Store(private val app: Application) : AndroidViewModel(app) {
         sp.edit().putString("favs", favs.joinToString("|")).apply()
     }
     private fun loadWidgetOrder(): List<String> {
-        val all = listOf("clock", "calendar", "music", "favs")
+        val all = listOf("clock", "calendar", "plan", "music", "favs")
         val saved = (sp.getString("worder", "") ?: "").split(",").filter { it in all }.distinct()
         return saved + all.filter { it !in saved }
     }
@@ -257,6 +259,25 @@ class Store(private val app: Application) : AndroidViewModel(app) {
         l.add(to, w)
         widgetOrder = l
         sp.edit().putString("worder", l.joinToString(",")).apply()
+    }
+    // Accepts things like "7:30 Gym", "7 am Gym", "2 pm Call mom". Returns false if it does not start with a time.
+    fun addPlan(raw: String): Boolean {
+        val m = Regex("^\\s*(\\d{1,2})(?::(\\d{2}))?\\s*([aApP][mM])?\\s+(.+)$").find(raw) ?: return false
+        var h = m.groupValues[1].toInt()
+        val min = m.groupValues[2].ifEmpty { "0" }.toInt()
+        val ap = m.groupValues[3].lowercase()
+        if (ap == "pm" && h < 12) h += 12
+        if (ap == "am" && h == 12) h = 0
+        if (h > 23 || min > 59) return false
+        val text = m.groupValues[4].trim()
+        if (text.isEmpty()) return false
+        plan = (plan + "${h * 60 + min}|$text").sortedBy { it.substringBefore("|").toIntOrNull() ?: 0 }
+        sp.edit().putString("plan", plan.joinToString("\u0001")).apply()
+        return true
+    }
+    fun removePlan(index: Int) {
+        plan = plan.filterIndexed { n, _ -> n != index }
+        sp.edit().putString("plan", plan.joinToString("\u0001")).apply()
     }
     fun addTodo(t: String) {
         if (t.isBlank()) return
