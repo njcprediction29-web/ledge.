@@ -301,7 +301,7 @@ fun MusicPlayer(pal: Pal) {
                 val list = mgr.getActiveSessions(ComponentName(ctx, NotifService::class.java))
                 val live = list.filter {
                     val s = it.playbackState?.state
-                    s == PlaybackState.STATE_PLAYING || s == PlaybackState.STATE_PAUSED || s == PlaybackState.STATE_BUFFERING
+                    s == PlaybackState.STATE_PLAYING || s == PlaybackState.STATE_BUFFERING || (s == PlaybackState.STATE_PAUSED && it.packageName in Badges.active)
                 }
                 val c = live.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING } ?: live.firstOrNull()
                 if (c == null) {
