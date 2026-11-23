@@ -160,6 +160,7 @@ fun Home(s: Store) {
     var settingsOpen by remember { mutableStateOf(false) }
     var verseOpen by remember { mutableStateOf(false) }
     var todoOpen by remember { mutableStateOf(false) }
+    var planOpen by remember { mutableStateOf(false) }
     var searchOpen by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
     var from by remember { mutableStateOf<Char?>(null) }
@@ -171,7 +172,7 @@ fun Home(s: Store) {
     val locL = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { s.refreshWeather() }
     val conL = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { hasContacts = it }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { u -> if (u != null) s.setPhoto(u) }
-    val overlay = menuApp != null || settingsOpen || verseOpen || todoOpen
+    val overlay = menuApp != null || settingsOpen || verseOpen || todoOpen || planOpen
 
     fun closeSearch() { query = ""; searchOpen = false; focus.clearFocus() }
 
@@ -181,7 +182,7 @@ fun Home(s: Store) {
     }
     LaunchedEffect(s.homeTick) {
         if (s.homeTick > 0) {
-            menuApp = null; settingsOpen = false; verseOpen = false; todoOpen = false; closeSearch(); from = null
+            menuApp = null; settingsOpen = false; verseOpen = false; todoOpen = false; planOpen = false; closeSearch(); from = null
         }
     }
     LaunchedEffect(overlay) {
@@ -198,6 +199,7 @@ fun Home(s: Store) {
             settingsOpen -> settingsOpen = false
             verseOpen -> verseOpen = false
             todoOpen -> todoOpen = false
+            planOpen -> planOpen = false
             searchOpen -> closeSearch()
             else -> from = null
         }
@@ -260,6 +262,9 @@ fun Home(s: Store) {
                                 }
                                 "calendar" -> {
                                     if (!clean && s.i("hc") == 0) item(key = "cal") { CalendarBox(pal) }
+                                }
+                                "plan" -> {
+                                    if (!clean && s.i("hp") == 0) item(key = "plan") { PlanBox(s, pal) { planOpen = true } }
                                 }
                                 "music" -> {
                                     if (!clean && s.i("hm") == 0) item(key = "music") { MusicPlayer(pal) }
@@ -424,6 +429,10 @@ fun Home(s: Store) {
                     )
                 }
             }
+        }
+
+        if (planOpen) {
+            Popup(pal, { planOpen = false }) { PlanEditor(s, pal) }
         }
 
         if (settingsOpen) {
