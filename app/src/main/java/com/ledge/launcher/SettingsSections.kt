@@ -206,6 +206,20 @@ fun SettingsSections(s: Store, pal: Pal, onPick: () -> Unit, onLoc: () -> Unit) 
             }
         }
 
+        Fold("🎵 Music box", pal) {
+            Text("The music box appears when you play music, stays (paused) while the song is paused, and goes away when you close the music app.", color = pal.sub, fontSize = 12.sp)
+            SectionLabel("Design", pal)
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MUSIC_STYLES.forEachIndexed { n, name ->
+                    Chip(name, s.i("mstyle") == n, pal, Modifier.width(84.dp)) { s.setI("mstyle", n) }
+                }
+            }
+            SectionLabel("Preview", pal)
+            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(pal.text.copy(alpha = .12f)).padding(14.dp)) {
+                MusicView(s.i("mstyle"), "Song title", "Artist name", null, true, 0.4f, pal, {}, {}, {}, {})
+            }
+        }
+
         Fold("🌤️ Weather", pal) {
             SectionLabel("Location", pal)
             Seg(listOf("Automatic", "My city"), s.i("wmode"), pal) { s.setI("wmode", it); s.refreshWeather() }
