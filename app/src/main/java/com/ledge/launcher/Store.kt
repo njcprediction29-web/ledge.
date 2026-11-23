@@ -165,7 +165,7 @@ class Store(private val app: Application) : AndroidViewModel(app) {
         "clean" to 0, "hy" to 2,
         "ishape" to 0, "isize" to 1, "ispace" to 1, "labels" to 1, "lsize" to 1, "lweight" to 1, "lfont" to 0,
         "cstyle" to 0, "csize" to 1, "ccolor" to 0, "cweight" to 0, "calign" to 0,
-        "wdir" to 0, "wmode" to 0, "wh" to 1
+        "wdir" to 0, "wmode" to 0, "wh" to 1, "hm" to 0, "hf" to 0
     )
     private val ints = mutableStateMapOf<String, Int>().also { m -> defs.forEach { (k, d) -> m[k] = sp.getInt(k, d) } }
     fun i(k: String): Int = ints[k] ?: 0
@@ -174,6 +174,8 @@ class Store(private val app: Application) : AndroidViewModel(app) {
     var apps by mutableStateOf<List<AppItem>>(emptyList()); private set
     var hidden by mutableStateOf(sp.getStringSet("hidden", emptySet())!!.toSet()); private set
     var favs by mutableStateOf(sp.getString("favs", "")!!.split("|").filter { it.isNotEmpty() }); private set
+    // Order of the home screen widgets: clock, calendar, music, favs (changed by dragging in settings)
+    var widgetOrder by mutableStateOf(loadWidgetOrder()); private set
     var todos by mutableStateOf(sp.getString("todos", "")!!.split("\u0001").filter { it.isNotEmpty() }); private set
     var vFav by mutableStateOf(sp.getStringSet("vfav", emptySet())!!.toSet()); private set
     var vOff by mutableIntStateOf(0)
@@ -242,6 +244,19 @@ class Store(private val app: Application) : AndroidViewModel(app) {
         l.add(b, pkg)
         favs = l
         sp.edit().putString("favs", favs.joinToString("|")).apply()
+    }
+    private fun loadWidgetOrder(): List<String> {
+        val all = listOf("clock", "calendar", "music", "favs")
+        val saved = (sp.getString("worder", "") ?: "").split(",").filter { it in all }.distinct()
+        return saved + all.filter { it !in saved }
+    }
+    fun moveWidget(from: Int, to: Int) {
+        if (from !in widgetOrder.indices || to !in widgetOrder.indices || from == to) return
+        val l = widgetOrder.toMutableList()
+        val w = l.removeAt(from)
+        l.add(to, w)
+        widgetOrder = l
+        sp.edit().putString("worder", l.joinToString(",")).apply()
     }
     fun addTodo(t: String) {
         if (t.isBlank()) return
