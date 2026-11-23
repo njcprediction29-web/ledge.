@@ -229,6 +229,17 @@ class Store(private val app: Application) : AndroidViewModel(app) {
         favs = if (pkg in favs) favs - pkg else favs + pkg
         sp.edit().putString("favs", favs.joinToString("|")).apply()
     }
+    // Drag and drop: puts the favorite [pkg] in the place of the favorite [toPkg] and saves the new order
+    fun moveFav(pkg: String, toPkg: String) {
+        val a = favs.indexOf(pkg)
+        val b = favs.indexOf(toPkg)
+        if (a < 0 || b < 0 || a == b) return
+        val l = favs.toMutableList()
+        l.removeAt(a)
+        l.add(b, pkg)
+        favs = l
+        sp.edit().putString("favs", favs.joinToString("|")).apply()
+    }
     fun addTodo(t: String) {
         if (t.isBlank()) return
         todos = todos + t.trim()
