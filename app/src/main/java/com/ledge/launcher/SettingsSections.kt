@@ -9,6 +9,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -16,6 +17,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -129,6 +132,33 @@ fun SettingsSections(s: Store, pal: Pal, onPick: () -> Unit, onLoc: () -> Unit) 
             Text("☀ wallpapers look best with the Light theme. Your own photo is applied right away.", color = pal.sub, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
             Spacer(Modifier.size(10.dp))
             Chip("✓ Apply wallpaper", true, pal, Modifier.fillMaxWidth()) { s.setI("wp", draftWp); s.setI("wdir", draftDir) }
+        }
+
+        Fold("🌤️ Weather", pal) {
+            SectionLabel("Location", pal)
+            Seg(listOf("Automatic", "My city"), s.i("wmode"), pal) { s.setI("wmode", it); s.refreshWeather() }
+            if (s.i("wmode") == 1) {
+                var cityIn by remember { mutableStateOf("") }
+                SectionLabel("City" + if (s.cityName.isNotEmpty()) " (now: ${s.cityName})" else "", pal)
+                Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(pal.text.copy(alpha = .12f))
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                ) {
+                    BasicTextField(
+                        cityIn, { cityIn = it }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                        textStyle = TextStyle(color = pal.text, fontSize = 16.sp), cursorBrush = SolidColor(pal.accent),
+                        decorationBox = { inner ->
+                            if (cityIn.isEmpty()) Text("Type a city, e.g. Manila", color = pal.sub, fontSize = 16.sp)
+                            inner()
+                        }
+                    )
+                }
+                Spacer(Modifier.size(8.dp))
+                Chip("Search and save city", true, pal, Modifier.fillMaxWidth()) { s.setCity(cityIn) }
+                if (s.cityMsg.isNotEmpty()) Text(s.cityMsg, color = pal.sub, fontSize = 12.sp, modifier = Modifier.padding(top = 6.dp))
+            }
+            SectionLabel("Humidity", pal)
+            Seg(listOf("Hidden", "Shown"), s.i("wh"), pal) { s.setI("wh", it) }
         }
 
         Fold("🔷 Icons and labels", pal) {
