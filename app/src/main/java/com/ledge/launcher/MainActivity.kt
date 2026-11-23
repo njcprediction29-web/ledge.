@@ -249,19 +249,36 @@ fun Home(s: Store) {
                             start = if (left) 46.dp else 20.dp, end = if (left) 20.dp else 46.dp
                         )
                     ) {
-                        item(key = "head") {
-                            HeaderBlock(s, pal, { locL.launch(Manifest.permission.ACCESS_COARSE_LOCATION) },
-                                { settingsOpen = true }, { verseOpen = true }, { todoOpen = true })
-                        }
-                        item(key = "music") { if (!clean) MusicBox(pal) }
-                        // Favorites: tap to open, long-press and drag to reorder, long-press and let go for options
-                        items(favApps, key = { "f" + it.pkg }) { a ->
-                            DragFavRow(
-                                a, pal, icon, if (showN) Badges.counts[a.pkg] ?: 0 else 0,
-                                if (showN) Badges.last[a.pkg] else null,
-                                drag, homeState, favApps, s,
-                                { launchApp(ctx, a) }, { menuApp = a }
-                            )
+                        // The widgets appear in the order chosen in Settings > Home widgets
+                        s.widgetOrder.forEach { w ->
+                            when (w) {
+                                "clock" -> {
+                                    item(key = "head") {
+                                        HeaderBlock(s, pal, { locL.launch(Manifest.permission.ACCESS_COARSE_LOCATION) },
+                                            { settingsOpen = true }, { verseOpen = true }, { todoOpen = true })
+                                    }
+                                }
+                                "calendar" -> {
+                                    if (!clean && s.i("hc") == 0) item(key = "cal") { CalendarBox(pal) }
+                                }
+                                "music" -> {
+                                    if (!clean && s.i("hm") == 0) item(key = "music") { MusicPlayer(pal) }
+                                }
+                                "favs" -> {
+                                    // Favorites: tap to open, long-press and drag to reorder, long-press and let go for options
+                                    if (s.i("hf") == 0) {
+                                        items(favApps, key = { "f" + it.pkg }) { a ->
+                                            DragFavRow(
+                                                a, pal, icon, if (showN) Badges.counts[a.pkg] ?: 0 else 0,
+                                                if (showN) Badges.last[a.pkg] else null,
+                                                drag, homeState, favApps, s,
+                                                { launchApp(ctx, a) }, { menuApp = a }
+                                            )
+                                        }
+                                    }
+                                }
+                                else -> {}
+                            }
                         }
                         if (!clean) {
                             item(key = "hint") {
