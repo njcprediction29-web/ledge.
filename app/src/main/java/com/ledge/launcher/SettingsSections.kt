@@ -9,6 +9,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -17,6 +18,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.platform.LocalContext
@@ -132,6 +137,71 @@ fun SettingsSections(s: Store, pal: Pal, onPick: () -> Unit, onLoc: () -> Unit) 
             Text("☀ wallpapers look best with the Light theme. Your own photo is applied right away.", color = pal.sub, fontSize = 12.sp, modifier = Modifier.padding(top = 8.dp))
             Spacer(Modifier.size(10.dp))
             Chip("✓ Apply wallpaper", true, pal, Modifier.fillMaxWidth()) { s.setI("wp", draftWp); s.setI("wdir", draftDir) }
+        }
+
+        Fold("🧩 Home widgets", pal) {
+            Text("Hold ☰ and drag a widget up or down to change the order. Tap Shown/Hidden to show or hide it.", color = pal.sub, fontSize = 12.sp)
+            val dens = LocalDensity.current.density
+            val rowPx = 56f * dens
+            var dragW by remember { mutableStateOf<String?>(null) }
+            var dragDy by remember { mutableFloatStateOf(0f) }
+            Spacer(Modifier.size(8.dp))
+            s.widgetOrder.forEach { w ->
+                key(w) {
+                    val title = when (w) {
+                        "clock" -> "🕐 Clock and weather"
+                        "calendar" -> "📅 Calendar"
+                        "music" -> "🎵 Music player"
+                        else -> "⭐ Favorites"
+                    }
+                    val hideKey = when (w) {
+                        "calendar" -> "hc"
+                        "music" -> "hm"
+                        "favs" -> "hf"
+                        else -> ""
+                    }
+                    val lifted = dragW == w
+                    Box(
+                        Modifier.fillMaxWidth().height(56.dp).zIndex(if (lifted) 1f else 0f)
+                            .graphicsLayer { translationY = if (lifted) dragDy else 0f }
+                            .padding(vertical = 4.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (lifted) pal.accent.copy(alpha = .35f) else pal.text.copy(alpha = .12f))
+                    ) {
+                        Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                Modifier.size(52.dp, 48.dp).pointerInput(w) {
+                                    detectDragGestures(
+                                        onDragStart = { dragW = w; dragDy = 0f },
+                                        onDrag = { change, amount ->
+                                            change.consume()
+                                            dragDy += amount.y
+                                            val i = s.widgetOrder.indexOf(w)
+                                            if (dragDy > rowPx / 2 && i < s.widgetOrder.lastIndex) {
+                                                s.moveWidget(i, i + 1); dragDy -= rowPx
+                                            } else if (dragDy < -rowPx / 2 && i > 0) {
+                                                s.moveWidget(i, i - 1); dragDy += rowPx
+                                            }
+                                        },
+                                        onDragEnd = { dragW = null; dragDy = 0f },
+                                        onDragCancel = { dragW = null; dragDy = 0f }
+                                    )
+                                },
+                                contentAlignment = Alignment.Center
+                            ) { Text("☰", color = pal.text, fontSize = 22.sp) }
+                            Text(title, color = pal.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                            if (hideKey.isNotEmpty()) {
+                                Chip(
+                                    if (s.i(hideKey) == 0) "Shown" else "Hidden", s.i(hideKey) == 0, pal,
+                                    Modifier.width(84.dp).padding(end = 6.dp)
+                                ) { s.setI(hideKey, 1 - s.i(hideKey)) }
+                            } else {
+                                Text("Always on", color = pal.sub, fontSize = 12.sp, modifier = Modifier.padding(end = 12.dp))
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         Fold("🌤️ Weather", pal) {
