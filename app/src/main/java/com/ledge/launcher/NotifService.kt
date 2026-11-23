@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 object Badges {
     var counts by mutableStateOf<Map<String, Int>>(emptyMap())
     var last by mutableStateOf<Map<String, String>>(emptyMap())
+    var active by mutableStateOf<Set<String>>(emptySet())
 }
 
 class NotifService : NotificationListenerService() {
@@ -19,7 +20,9 @@ class NotifService : NotificationListenerService() {
 
     private fun refresh() {
         try {
-            val list = activeNotifications.filter { it.isClearable }
+            val all = activeNotifications
+            Badges.active = all.map { it.packageName }.toSet()
+            val list = all.filter { it.isClearable }
             Badges.counts = list.groupingBy { it.packageName }.eachCount()
             Badges.last = list.sortedByDescending { it.postTime }.distinctBy { it.packageName }.associate {
                 val e = it.notification.extras
