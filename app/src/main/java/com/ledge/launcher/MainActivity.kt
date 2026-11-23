@@ -267,7 +267,7 @@ fun Home(s: Store) {
                                     if (!clean && s.i("hp") == 0) item(key = "plan") { PlanBox(s, pal) { planOpen = true } }
                                 }
                                 "music" -> {
-                                    if (!clean && s.i("hm") == 0) item(key = "music") { MusicPlayer(pal) }
+                                    if (s.i("hm") == 0) item(key = "music") { MusicPlayer(pal) }
                                 }
                                 "favs" -> {
                                     // Favorites: tap to open, long-press and drag to reorder, long-press and let go for options
@@ -489,7 +489,8 @@ fun HeaderBlock(s: Store, pal: Pal, onWeather: () -> Unit, onSettings: () -> Uni
 
 class ClockStyle(
     val name: String, val family: FontFamily, val weight: FontWeight,
-    val spacing: Float, val size: Float, val weekday: Boolean = false
+    val spacing: Float, val size: Float, val weekday: Boolean = false,
+    val kind: Int = 0 // 0 plain text, 2 stacked, 3 two-tone, 4 underline, 5 card, 6 dots
 )
 
 val CLOCKS = listOf(
@@ -500,7 +501,13 @@ val CLOCKS = listOf(
     ClockStyle("Digital", FontFamily.Monospace, FontWeight.Normal, 2f, 36f),
     ClockStyle("Future", FontFamily.Monospace, FontWeight.Light, 8f, 34f),
     ClockStyle("Script", FontFamily.Cursive, FontWeight.Normal, 0f, 46f),
-    ClockStyle("Weekday", FontFamily.Default, FontWeight.Thin, 10f, 56f, true)
+    ClockStyle("Weekday", FontFamily.Default, FontWeight.Thin, 10f, 56f, true),
+    ClockStyle("Stack", FontFamily.Default, FontWeight.Thin, 0f, 52f, kind = 2),
+    ClockStyle("Duo", FontFamily.Default, FontWeight.Light, 0f, 46f, kind = 3),
+    ClockStyle("Line", FontFamily.Default, FontWeight.Light, 4f, 40f, kind = 4),
+    ClockStyle("Card", FontFamily.Default, FontWeight.Medium, 2f, 34f, kind = 5),
+    ClockStyle("Dots", FontFamily.Monospace, FontWeight.Light, 6f, 38f, kind = 6),
+    ClockStyle("Serif", FontFamily.Serif, FontWeight.Light, 0f, 52f)
 )
 
 fun clockColor(i: Int, pal: Pal): Color = when (i) {
@@ -535,16 +542,62 @@ fun ClockFace(
     }
     val col = color ?: clockColor(s.i("ccolor"), pal)
     val mod = if (onLong != null) modifier.combinedClickable(onClick = {}, onLongClick = onLong) else modifier
-    if (cs.weekday) {
-        Column(mod, horizontalAlignment = if (s.i("calign") == 1) Alignment.CenterHorizontally else Alignment.Start) {
-            Text(weekday, color = col, fontSize = (cs.size * f).sp, fontWeight = w, letterSpacing = (cs.spacing * f).sp, style = SH)
-            Text(time, color = col, fontSize = (14f * f).sp, fontWeight = FontWeight.Normal, letterSpacing = (2f * f).sp, style = SH)
+    val align = if (s.i("calign") == 1) Alignment.CenterHorizontally else Alignment.Start
+    val big = (cs.size * f).sp
+    val hh = time.substringBefore(":")
+    val mm = time.substringAfter(":")
+    // the accent color is used for the extra detail, unless this is a small preview tile
+    val detail = if (color == null) pal.accent else col
+    when {
+        cs.weekday -> {
+            Column(mod, horizontalAlignment = align) {
+                Text(weekday, color = col, fontSize = big, fontWeight = w, letterSpacing = (cs.spacing * f).sp, style = SH)
+                Text(time, color = col, fontSize = (14f * f).sp, fontWeight = FontWeight.Normal, letterSpacing = (2f * f).sp, style = SH)
+            }
         }
-    } else {
-        Text(
-            time, color = col, fontSize = (cs.size * f).sp, fontWeight = w, fontFamily = cs.family,
-            letterSpacing = (cs.spacing * f).sp, style = SH, modifier = mod
-        )
+        cs.kind == 2 -> {
+            // hours on top of minutes
+            Column(mod, horizontalAlignment = align) {
+                Text(hh, color = col, fontSize = big, fontWeight = w, fontFamily = cs.family, lineHeight = (cs.size * f * 0.95f).sp, style = SH)
+                Text(mm, color = col.copy(alpha = 0.75f), fontSize = big, fontWeight = w, fontFamily = cs.family, lineHeight = (cs.size * f * 0.95f).sp, style = SH)
+            }
+        }
+        cs.kind == 3 -> {
+            // bold hours, thin minutes in the accent color
+            Row(mod, verticalAlignment = Alignment.Bottom) {
+                Text(hh, color = col, fontSize = big, fontWeight = FontWeight.Bold, fontFamily = cs.family, style = SH)
+                Text(mm, color = detail, fontSize = big, fontWeight = FontWeight.Thin, fontFamily = cs.family, style = SH)
+            }
+        }
+        cs.kind == 4 -> {
+            // time with a short accent line under it
+            Column(mod, horizontalAlignment = align) {
+                Text(time, color = col, fontSize = big, fontWeight = w, fontFamily = cs.family, letterSpacing = (cs.spacing * f).sp, style = SH)
+                Box(Modifier.padding(top = (2f * f).dp).width((cs.size * f * 1.2f).dp).height((3f * f).dp).clip(CircleShape).background(detail))
+            }
+        }
+        cs.kind == 5 -> {
+            // time inside a soft rounded card
+            Box(
+                mod.clip(RoundedCornerShape((18f * f).dp)).background(col.copy(alpha = 0.14f))
+                    .padding(horizontal = (16f * f).dp, vertical = (6f * f).dp)
+            ) {
+                Text(time, color = col, fontSize = big, fontWeight = w, fontFamily = cs.family, letterSpacing = (cs.spacing * f).sp, style = SH)
+            }
+        }
+        cs.kind == 6 -> {
+            // a dot instead of the colon
+            Text(
+                time.replace(":", " · "), color = col, fontSize = big, fontWeight = w, fontFamily = cs.family,
+                letterSpacing = (cs.spacing * f).sp, style = SH, modifier = mod
+            )
+        }
+        else -> {
+            Text(
+                time, color = col, fontSize = big, fontWeight = w, fontFamily = cs.family,
+                letterSpacing = (cs.spacing * f).sp, style = SH, modifier = mod
+            )
+        }
     }
 }
 
