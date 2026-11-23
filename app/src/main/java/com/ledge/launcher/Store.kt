@@ -165,7 +165,7 @@ class Store(private val app: Application) : AndroidViewModel(app) {
         "clean" to 0, "hy" to 2,
         "ishape" to 0, "isize" to 1, "ispace" to 1, "labels" to 1, "lsize" to 1, "lweight" to 1, "lfont" to 0,
         "cstyle" to 0, "csize" to 1, "ccolor" to 0, "cweight" to 0, "calign" to 0,
-        "wdir" to 0
+        "wdir" to 0, "wmode" to 0, "wh" to 1
     )
     private val ints = mutableStateMapOf<String, Int>().also { m -> defs.forEach { (k, d) -> m[k] = sp.getInt(k, d) } }
     fun i(k: String): Int = ints[k] ?: 0
@@ -179,6 +179,9 @@ class Store(private val app: Application) : AndroidViewModel(app) {
     var vOff by mutableIntStateOf(0)
     var tempC by mutableStateOf<Double?>(null); private set
     var wCode by mutableIntStateOf(0); private set
+    var wHum by mutableIntStateOf(-1); private set
+    var cityName by mutableStateOf(sp.getString("cname", "") ?: "")
+    var cityMsg by mutableStateOf("")
     var homeTick by mutableIntStateOf(0)
     var wallBmp by mutableStateOf<ImageBitmap?>(null); private set
 
@@ -284,23 +287,70 @@ class Store(private val app: Application) : AndroidViewModel(app) {
         val t = tempC ?: return null
         val f = i("useF") == 1
         val v = if (f) t * 9 / 5 + 32 else t
-        return "${weatherEmoji(wCode)} ${v.roundToInt()}°${if (f) "F" else "C"}"
+        val hum = if (i("wh") == 1 && wHum >= 0) "  💧 $wHum%" else ""
+        return "${weatherEmoji(wCode)} ${v.roundToInt()}°${if (f) "F" else "C"}$hum"
     }
 
+    // Weather: "wmode" 0 = automatic (phone location), 1 = the city typed in settings
     @SuppressLint("MissingPermission")
     fun refreshWeather() {
-        if (app.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) return
+        val manual = i("wmode") == 1
+        if (!manual && app.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val lm = app.getSystemService(LocationManager::class.java)
-                val loc = findLocation(lm) ?: return@launch
-                val url = "https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}" +
-                    "&longitude=${loc.longitude}&current=temperature_2m,weather_code"
+                var lat = 0.0
+                var lon = 0.0
+                if (manual) {
+                    if (!sp.contains("clat") || !sp.contains("clon")) return@launch
+                    lat = sp.getString("clat", "")!!.toDouble()
+                    lon = sp.getString("clon", "")!!.toDouble()
+                } else {
+                    val lm = app.getSystemService(LocationManager::class.java)
+                    val loc = findLocation(lm) ?: return@launch
+                    lat = loc.latitude
+                    lon = loc.longitude
+                }
+                val url = "https://api.open-meteo.com/v1/forecast?latitude=$lat" +
+                    "&longitude=$lon&current=temperature_2m,weather_code,relative_humidity_2m"
                 val cur = JSONObject(URL(url).readText()).getJSONObject("current")
                 val t = cur.getDouble("temperature_2m")
                 val c = cur.getInt("weather_code")
-                withContext(Dispatchers.Main) { tempC = t; wCode = c }
+                val h = cur.optInt("relative_humidity_2m", -1)
+                withContext(Dispatchers.Main) { tempC = t; wCode = c; wHum = h }
             } catch (e: Exception) {
+            }
+        }
+    }
+
+    // Looks up a city by name, saves it, and switches the weather to Manual
+    fun setCity(q: String) {
+        val name = q.trim()
+        if (name.isEmpty()) { cityMsg = "Type a city name first"; return }
+        cityMsg = "Searching..."
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val url = "https://geocoding-api.open-meteo.com/v1/search?count=1&name=" + Uri.encode(name)
+                val arr = JSONObject(URL(url).readText()).optJSONArray("results")
+                if (arr == null || arr.length() == 0) {
+                    withContext(Dispatchers.Main) { cityMsg = "City not found" }
+                    return@launch
+                }
+                val r = arr.getJSONObject(0)
+                val country = r.optString("country")
+                val label = r.getString("name") + (if (country.isNotEmpty()) ", $country" else "")
+                sp.edit()
+                    .putString("clat", r.getDouble("latitude").toString())
+                    .putString("clon", r.getDouble("longitude").toString())
+                    .putString("cname", label)
+                    .apply()
+                withContext(Dispatchers.Main) {
+                    cityName = label
+                    cityMsg = "Saved: $label"
+                    setI("wmode", 1)
+                    refreshWeather()
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) { cityMsg = "Could not search. Check your internet." }
             }
         }
     }
