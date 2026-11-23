@@ -151,11 +151,13 @@ fun SettingsSections(s: Store, pal: Pal, onPick: () -> Unit, onLoc: () -> Unit) 
                     val title = when (w) {
                         "clock" -> "🕐 Clock and weather"
                         "calendar" -> "📅 Calendar"
+                        "plan" -> "🗓️ Plan your day"
                         "music" -> "🎵 Music player"
                         else -> "⭐ Favorites"
                     }
                     val hideKey = when (w) {
                         "calendar" -> "hc"
+                        "plan" -> "hp"
                         "music" -> "hm"
                         "favs" -> "hf"
                         else -> ""
