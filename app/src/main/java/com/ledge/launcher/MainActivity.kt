@@ -680,12 +680,12 @@ fun AppIcon(a: AppItem, style: Int, pal: Pal, size: androidx.compose.ui.unit.Dp?
         else -> RoundedCornerShape(12.dp)
     }
     val bmp = remember(a.pkg) { loadIcon(ctx, a) }
-        val lumen = remember(a.pkg, style) { if (style == 3) IconEngine.render(ctx, a, 0xFFF7D9C8.toInt(), 0xFF14161C.toInt()) else null }
+          val lumen = remember(a.pkg, style) { if (style == 3) IconEngine.lumen(ctx, a) else null }  
     val gray = remember { ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }) }
     val clipMod = if (shapeKind != 0) Modifier.clip(shape) else Modifier
     when (style) {
         0 -> Image(bmp, null, Modifier.size(sz).then(clipMod))
-                3 -> if (lumen != null) Image(lumen, null, Modifier.size(sz).clip(shape))
+              3 -> if (lumen != null) Image(lumen, null, Modifier.size(sz))
         1 -> Image(bmp, null, Modifier.size(sz).then(clipMod), colorFilter = gray)
         else -> Box(Modifier.size(sz).clip(shape).border(1.5.dp, pal.text, shape).padding(sz * 0.14f)) {
             Image(bmp, null, Modifier.fillMaxSize(), colorFilter = gray, alpha = 0.9f)
