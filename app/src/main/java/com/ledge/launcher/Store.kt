@@ -62,7 +62,12 @@ class Pal(val text: Color, val sub: Color, val card: Color, val scrim: Color, va
 class Pack(val name: String, val colors: List<Color>)
 
 val ACCENTS = listOf(
-    Color(0xFFFFB27D), Color(0xFF7CC4FF), Color(0xFF7DE0B0), Color(0xFFFF8FA3), Color(0xFFB9A4FF)
+        Color(0xFFFF8FA3), Color(0xFFB9A4FF),
+    Color(0xFFFF6B6B), Color(0xFFFF9F43), Color(0xFFFFD93D), Color(0xFFC6F135), Color(0xFF6BCB77), Color(0xFF2ED573),
+    Color(0xFF1DD1A1), Color(0xFF00D2D3), Color(0xFF48DBFB), Color(0xFF54A0FF), Color(0xFF5F7CFF), Color(0xFF8E7CFF),
+    Color(0xFFC56CF0), Color(0xFFFF6FD8), Color(0xFFFF7AB6), Color(0xFFF8A5C2), Color(0xFFFFC7A6), Color(0xFFE8D5B7),
+    Color(0xFFD4A373), Color(0xFFA0E7E5), Color(0xFFB8F2E6), Color(0xFFFFE066), Color(0xFFFF5E78), Color(0xFFBDB2FF),
+    Color(0xFFCAFFBF), Color(0xFFE9ECEF)
 )
 val LETTER_SP = listOf(9, 11, 13)
 val PACKS = listOf(
