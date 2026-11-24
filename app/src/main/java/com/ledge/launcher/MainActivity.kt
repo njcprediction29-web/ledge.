@@ -133,6 +133,36 @@ fun searchContacts(ctx: Context, q: String): List<Contact> {
 
 val SH = TextStyle(shadow = Shadow(Color(0x99000000), Offset(0f, 2f), 6f))
 
+private val fontCache = java.util.concurrent.ConcurrentHashMap<String, FontFamily>()
+
+// Loads a font file from the app's assets/fonts folder; if it is missing, the normal font is used
+private fun assetFont(ctx: android.content.Context, name: String): FontFamily {
+    fontCache[name]?.let { return it }
+    for (ext in listOf("ttf", "otf")) {
+        try {
+            val f = FontFamily(android.graphics.Typeface.createFromAsset(ctx.assets, "fonts/" + name + "." + ext))
+            fontCache[name] = f
+            return f
+        } catch (e: Exception) { }
+    }
+    return FontFamily.Default
+}
+
+@Composable
+fun labelFontOf(i: Int): FontFamily {
+    val ctx = LocalContext.current
+    return when (i) {
+        1 -> FontFamily.Serif
+        2 -> FontFamily.Monospace
+        3 -> FontFamily.Cursive
+        4 -> assetFont(ctx, "neumatic")
+        5 -> assetFont(ctx, "galderglynn")
+        6 -> assetFont(ctx, "martianmono")
+        7 -> assetFont(ctx, "evogria")
+        8 -> assetFont(ctx, "researcher")
+        else -> FontFamily.Default
+    }
+}
 val LocalStore = staticCompositionLocalOf<Store> { error("Store not provided") }
 
 fun labelFont(i: Int): FontFamily = when (i) {
