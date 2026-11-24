@@ -313,10 +313,11 @@ fun Home(s: Store) {
                                     modifier = Modifier.padding(bottom = 6.dp, start = 4.dp)
                                 )
                             }
-                            items(list, key = { "g" + it.pkg }) { a ->
+                                        items(list, key = { "g" + it.pkg }) { a -> Entrance(list.indexOf(a)) {
                                 AppRow(a, pal, icon, if (showN) Badges.counts[a.pkg] ?: 0 else 0, null,
                                     { launchApp(ctx, a) }) {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuApp = a
+                                }
                                 }
                             }
                         }
