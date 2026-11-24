@@ -4,9 +4,9 @@ import android.content.ComponentName
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
-import android.graphics.Paint
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
+import android.graphics.Paint
 import android.graphics.drawable.AdaptiveIconDrawable
 import android.graphics.drawable.Drawable
 import android.os.Build
@@ -17,7 +17,7 @@ import kotlin.math.abs
 import kotlin.math.max
 
 // Simple logos become ONLY the logo in one color with a see-through background.
-// Complicated icons (characters, full artwork) keep their original icon.
+// Complicated icons (characters, games, full artwork) keep their original icon.
 // The original icon is never changed: this makes a separate picture and keeps it in its own cache.
 object IconEngine {
     // ONE place to change the icon color for the whole launcher (soft warm peach)
@@ -25,12 +25,24 @@ object IconEngine {
 
     // Exceptions by package name. Put an app's package name between the quotes, separated by commas.
     // KEEP_ORIGINAL: always show the app's own icon. FORCE_LOGO: always make it a peach logo.
-    private val KEEP_ORIGINAL = setOf<String>()
+    private val KEEP_ORIGINAL = setOf(
+        "com.mobile.legends", "com.supercell.clashofclans", "com.supercell.clashroyale",
+        "com.supercell.brawlstars", "com.tencent.ig", "com.activision.callofduty.shooter",
+        "com.dts.freefireth", "com.roblox.client", "com.mojang.minecraftpe",
+        "com.kiloo.subwaysurf", "com.miHoYo.GenshinImpact"
+    )
     private val FORCE_LOGO = setOf<String>()
 
     // If an icon's artwork covers more than this share of the icon, it counts as a full picture
     // and keeps its original look. Raise it to turn more apps into logos, lower it for fewer.
     private const val COMPLEX_FILL = 0.38f
+
+    // If an icon uses this many different main colors it is artwork (a character, a scene).
+    private const val MANY_COLORS = 9
+
+    // A logo that is a plain filled shape (a blank circle or square) has no real logo in it.
+    // Such icons keep their original look. Lower it to keep more icons original.
+    private const val BLANK_RATIO = 0.74f
 
     private const val S = 108
     private const val GROW = 0.18f
@@ -46,7 +58,7 @@ object IconEngine {
         return cache.getOrPut(a.pkg + "|" + color + "|" + stamp) {
             try {
                 val keep = a.pkg in KEEP_ORIGINAL || (a.pkg !in FORCE_LOGO && isComplex(original(ctx, a)))
-                if (keep) loadIcon(ctx, a) else build(ctx, a, color).asImageBitmap()
+                if (keep) loadIcon(ctx, a) else (build(ctx, a, color)?.asImageBitmap() ?: loadIcon(ctx, a))
             } catch (e: Exception) {
                 loadIcon(ctx, a)
             }
@@ -67,6 +79,23 @@ object IconEngine {
         return bmp
     }
 
+    // how many different main colors the picture has
+    private fun colorBins(px: IntArray): Int {
+        val hist = IntArray(512)
+        var n = 0
+        for (c in px) {
+            if ((c ushr 24) > 200) {
+                val k = (((c shr 21) and 7) shl 6) or (((c shr 13) and 7) shl 3) or ((c shr 5) and 7)
+                hist[k]++
+                n++
+            }
+        }
+        if (n == 0) return 0
+        var bins = 0
+        for (h in hist) if (h > n * 0.02f) bins++
+        return bins
+    }
+
     // True for icons that are a full picture (a character, a scene, a filled artwork)
     private fun isComplex(d: Drawable): Boolean {
         if (Build.VERSION.SDK_INT >= 26 && d is AdaptiveIconDrawable) {
@@ -77,7 +106,8 @@ object IconEngine {
             draw(fg, 0f).getPixels(px, 0, S, 0, 0, S, S)
             var opaque = 0
             for (c in px) if ((c ushr 24) > 200) opaque++
-            return opaque > S * S * COMPLEX_FILL
+            if (opaque > S * S * COMPLEX_FILL) return true
+            return opaque > S * S * 0.10f && colorBins(px) >= MANY_COLORS
         }
         // an old-style icon: a full square picture is artwork, a see-through logo is not
         val px = IntArray(S * S)
@@ -99,7 +129,7 @@ object IconEngine {
         val out = IntArray(S * S)
         if (clear > px.size * 0.15f) {
             for (i in px.indices) out[i] = px[i] ushr 24
-            if (allowFill) refineFilled(px, out)
+            if (allowFill) cutDetails(px, out)
             return out
         }
         // a full square picture: the logo is whatever differs from the background color at the edges
@@ -126,8 +156,9 @@ object IconEngine {
         return out
     }
 
-    // When the logo is one big solid shape with a drawing inside it, keep only the drawing
-    private fun refineFilled(px: IntArray, out: IntArray) {
+    // A solid shape with a drawing inside (like Facebook's circle with the f): keep the shape
+    // and cut the drawing out of it, the same style as the reference image.
+    private fun cutDetails(px: IntArray, out: IntArray) {
         var opaque = 0
         val hist = HashMap<Int, Int>()
         for (i in px.indices) {
@@ -138,7 +169,7 @@ object IconEngine {
                 hist[k] = (hist[k] ?: 0) + 1
             }
         }
-        if (opaque < S * S * 0.35f) return
+        if (opaque < S * S * 0.08f) return
         val top = hist.maxByOrNull { it.value } ?: return
         if (top.value < opaque * 0.5f) return
         val r0 = ((top.key shr 8) and 15) * 16 + 8
@@ -146,24 +177,30 @@ object IconEngine {
         val b0 = (top.key and 15) * 16 + 8
         for (i in px.indices) {
             if (out[i] == 0) continue
-            out[i] = minOf(255, diffFrom(px[i], r0, g0, b0) * 3) * out[i] / 255
+            val d = minOf(255, diffFrom(px[i], r0, g0, b0) * 3)
+            out[i] = out[i] * (255 - d) / 255
         }
     }
 
-    private fun glyphAlpha(d: Drawable): IntArray {
+    // the logo mask, and whether it came from the app's official one-color layer
+    private class Glyph(val alpha: IntArray, val official: Boolean)
+
+    private fun glyphOf(d: Drawable): Glyph {
         if (Build.VERSION.SDK_INT >= 26 && d is AdaptiveIconDrawable) {
             if (Build.VERSION.SDK_INT >= 33) {
                 val mono = d.monochrome
-                if (mono != null) return maskOf(draw(mono, GROW), false)
+                if (mono != null) return Glyph(maskOf(draw(mono, GROW), false), true)
             }
             val fg = d.foreground
-            if (fg != null) return maskOf(draw(fg, GROW), true)
+            if (fg != null) return Glyph(maskOf(draw(fg, GROW), true), false)
         }
-        return maskOf(draw(d, 0f), true)
+        return Glyph(maskOf(draw(d, 0f), true), false)
     }
 
-    private fun build(ctx: Context, a: AppItem, color: Int): Bitmap {
-        val alpha = glyphAlpha(original(ctx, a))
+    // returns null when no clean logo could be found (the caller then keeps the original icon)
+    private fun build(ctx: Context, a: AppItem, color: Int): Bitmap? {
+        val glyph = glyphOf(original(ctx, a))
+        val alpha = glyph.alpha
         var covered = 0
         var minX = S
         var minY = S
@@ -180,20 +217,19 @@ object IconEngine {
                 if (y > maxY) maxY = y
             }
         }
+        if (covered < S * S * 0.01f) return null
+        val w = (maxX - minX + 1).toFloat()
+        val h = (maxY - minY + 1).toFloat()
+        // a plain filled shape has no real logo in it
+        if (!glyph.official && covered > w * h * BLANK_RATIO) return null
+
         val out = Bitmap.createBitmap(S, S, Bitmap.Config.ARGB_8888)
         val c = Canvas(out)
-        if (covered < S * S * 0.01f) {
-            // could not find a clean logo: keep the original picture instead of a broken one
-            c.drawBitmap(draw(original(ctx, a), 0f), 0f, 0f, Paint(Paint.FILTER_BITMAP_FLAG))
-            return out
-        }
         val m = Bitmap.createBitmap(S, S, Bitmap.Config.ARGB_8888)
         m.setPixels(IntArray(S * S) { alpha[it] shl 24 }, 0, S, 0, 0, S, S)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         paint.colorFilter = PorterDuffColorFilter(color, PorterDuff.Mode.SRC_IN)
         // same visual size for every logo: fit it to about 80% of the icon box, centered
-        val w = (maxX - minX + 1).toFloat()
-        val h = (maxY - minY + 1).toFloat()
         val scale = (S * 0.80f / max(w, h)).coerceIn(0.85f, 1.7f)
         c.save()
         c.translate(S / 2f, S / 2f)
