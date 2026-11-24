@@ -16,11 +16,21 @@ import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.abs
 import kotlin.math.max
 
-// Turns any app icon into ONLY its logo in one color, with a see-through background.
+// Simple logos become ONLY the logo in one color with a see-through background.
+// Complicated icons (characters, full artwork) keep their original icon.
 // The original icon is never changed: this makes a separate picture and keeps it in its own cache.
 object IconEngine {
     // ONE place to change the icon color for the whole launcher (soft warm peach)
     val PEACH: Int = 0xFFF8D2BC.toInt()
+
+    // Exceptions by package name. Put an app's package name between the quotes, separated by commas.
+    // KEEP_ORIGINAL: always show the app's own icon. FORCE_LOGO: always make it a peach logo.
+    private val KEEP_ORIGINAL = setOf<String>()
+    private val FORCE_LOGO = setOf<String>()
+
+    // If an icon's artwork covers more than this share of the icon, it counts as a full picture
+    // and keeps its original look. Raise it to turn more apps into logos, lower it for fewer.
+    private const val COMPLEX_FILL = 0.38f
 
     private const val S = 108
     private const val GROW = 0.18f
@@ -30,10 +40,18 @@ object IconEngine {
 
     fun lumen(ctx: Context, a: AppItem): ImageBitmap = render(ctx, a, PEACH)
 
-    fun render(ctx: Context, a: AppItem, color: Int): ImageBitmap =
-        cache.getOrPut(a.pkg + "|" + color) {
-            try { build(ctx, a, color).asImageBitmap() } catch (e: Exception) { loadIcon(ctx, a) }
+    fun render(ctx: Context, a: AppItem, color: Int): ImageBitmap {
+        // the app's last update time is part of the key, so an updated app with a new logo is redrawn
+        val stamp = try { ctx.packageManager.getPackageInfo(a.pkg, 0).lastUpdateTime } catch (e: Exception) { 0L }
+        return cache.getOrPut(a.pkg + "|" + color + "|" + stamp) {
+            try {
+                val keep = a.pkg in KEEP_ORIGINAL || (a.pkg !in FORCE_LOGO && isComplex(original(ctx, a)))
+                if (keep) loadIcon(ctx, a) else build(ctx, a, color).asImageBitmap()
+            } catch (e: Exception) {
+                loadIcon(ctx, a)
+            }
         }
+    }
 
     private fun original(ctx: Context, a: AppItem): Drawable {
         val pm = ctx.packageManager
@@ -47,6 +65,26 @@ object IconEngine {
         d.setBounds(-p, -p, S + p, S + p)
         d.draw(Canvas(bmp))
         return bmp
+    }
+
+    // True for icons that are a full picture (a character, a scene, a filled artwork)
+    private fun isComplex(d: Drawable): Boolean {
+        if (Build.VERSION.SDK_INT >= 26 && d is AdaptiveIconDrawable) {
+            // an official one-color layer means the app itself says it is a simple logo
+            if (Build.VERSION.SDK_INT >= 33 && d.monochrome != null) return false
+            val fg = d.foreground ?: return false
+            val px = IntArray(S * S)
+            draw(fg, 0f).getPixels(px, 0, S, 0, 0, S, S)
+            var opaque = 0
+            for (c in px) if ((c ushr 24) > 200) opaque++
+            return opaque > S * S * COMPLEX_FILL
+        }
+        // an old-style icon: a full square picture is artwork, a see-through logo is not
+        val px = IntArray(S * S)
+        draw(d, 0f).getPixels(px, 0, S, 0, 0, S, S)
+        var clear = 0
+        for (c in px) if ((c ushr 24) < 40) clear++
+        return clear < px.size * 0.15f
     }
 
     private fun diffFrom(c: Int, r: Int, g: Int, b: Int): Int =
