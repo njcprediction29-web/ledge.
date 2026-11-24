@@ -265,6 +265,7 @@ fun SettingsSections(s: Store, pal: Pal, onPick: () -> Unit, onLoc: () -> Unit) 
             Seg(listOf("Light", "Normal", "Bold"), s.i("lweight"), pal) { s.setI("lweight", it) }
             SectionLabel("Label font", pal)
             Seg(listOf("Default", "Serif", "Mono", "Script"), s.i("lfont"), pal) { s.setI("lfont", it) }
+            Seg(listOf("Martian"), s.i("lfont") - 6, pal) { s.setI("lfont", it + 6) }
         }
 
         Fold("🔤 A–Z letters", pal) {
