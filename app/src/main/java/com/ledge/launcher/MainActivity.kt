@@ -698,13 +698,16 @@ fun AppIcon(a: AppItem, style: Int, pal: Pal, size: androidx.compose.ui.unit.Dp?
 fun AppRow(a: AppItem, pal: Pal, icon: Int, badge: Int, sub: String?, onOpen: (() -> Unit)?, onMenu: (() -> Unit)?) {
     val st = LocalStore.current
     val vp = floatArrayOf(4f, 8f, 14f)[st.i("ispace").coerceIn(0, 2)].dp
+        var pressed by remember { mutableStateOf(false) }
+    val pressScale by androidx.compose.animation.core.animateFloatAsState(if (pressed) 0.94f else 1f, animationSpec = androidx.compose.animation.core.tween(if (pressed) 90 else 180), label = "pressScale")
     val labelSp = floatArrayOf(15f, 17f, 19f)[st.i("lsize").coerceIn(0, 2)].sp
     val weight = arrayOf(FontWeight.Light, FontWeight.Normal, FontWeight.Bold)[st.i("lweight").coerceIn(0, 2)]
     val family = labelFont(st.i("lfont"))
     val showLabel = st.i("labels") == 1
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+        Modifier.fillMaxWidth().graphicsLayer { scaleX = pressScale; scaleY = pressScale }.clip(RoundedCornerShape(14.dp))
             .then(if (onOpen != null) Modifier.combinedClickable(onClick = onOpen, onLongClick = onMenu) else Modifier)
+                        .pointerInput(Unit) { awaitPointerEventScope { while (true) { val e = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Final); pressed = e.changes.any { it.pressed && !it.isConsumed } } } }
             .padding(vertical = vp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
