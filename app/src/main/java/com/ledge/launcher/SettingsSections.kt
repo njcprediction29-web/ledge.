@@ -250,7 +250,7 @@ fun SettingsSections(s: Store, pal: Pal, onPick: () -> Unit, onLoc: () -> Unit) 
         Fold("🔷 Icons and labels", pal) {
             s.apps.firstOrNull()?.let { AppRow(it, pal, s.i("icon"), 0, null, {}, {}) }
             SectionLabel("Icon style", pal)
-            Seg(listOf("Color", "B&W", "Simple"), s.i("icon"), pal) { s.setI("icon", it) }
+            Seg(listOf("Color", "B&W", "Simple", "Lumen"), s.i("icon"), pal) { s.setI("icon", it) }
             SectionLabel("Icon shape", pal)
             Seg(listOf("Default", "Circle", "Soft", "Square"), s.i("ishape"), pal) { s.setI("ishape", it) }
             SectionLabel("Icon size", pal)
