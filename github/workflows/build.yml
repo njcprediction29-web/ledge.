@@ -15,7 +15,12 @@ jobs:
         with:
           gradle-version: "8.7"
       - run: gradle assembleDebug --no-daemon
-      - run: cp app/build/outputs/apk/debug/app-debug.apk Lumen.apk
+      - name: Sign with the permanent Lumen key
+        run: |
+          base64 -d signing/lumen.jks.b64 > lumen.jks
+          APKSIGNER=$(ls $ANDROID_HOME/build-tools/*/apksigner | sort -V | tail -1)
+          $APKSIGNER sign --ks lumen.jks --ks-pass pass:lumenpass --key-pass pass:lumenpass --ks-key-alias lumen --out Lumen.apk app/build/outputs/apk/debug/app-debug.apk
+          $APKSIGNER verify --print-certs Lumen.apk
       - uses: actions/upload-artifact@v4
         with:
           name: Lumen-APK
