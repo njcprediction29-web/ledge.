@@ -282,7 +282,8 @@ fun SettingsSections(s: Store, pal: Pal, onPick: () -> Unit, onLoc: () -> Unit) 
             SectionLabel("Theme", pal)
             Seg(listOf("Dark", "Light", "Black"), s.i("theme"), pal) { s.setI("theme", it) }
             SectionLabel("Accent color", pal)
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    AccentGrid(s, pal)
+        if (false) Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 ACCENTS.forEachIndexed { n, c ->
                     Box(
                         Modifier.size(36.dp).clip(CircleShape).background(c)
