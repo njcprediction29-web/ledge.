@@ -51,6 +51,15 @@ object IconEngine {
     fun clear() { cache.clear() }
 
     fun lumen(ctx: Context, a: AppItem): ImageBitmap = render(ctx, a, PEACH)
+        // theme 0 Peach, 1 Ivory, 2 Cream, 3 Soft pink, 4 Pure white, 5 Accent (follows the Theme accent color)
+    fun colorOf(theme: Int, accent: Int): Int = when (theme) {
+        1 -> 0xFFF2ECD8.toInt()
+        2 -> 0xFFFBE7C6.toInt()
+        3 -> 0xFFF9C6D8.toInt()
+        4 -> 0xFFFFFFFF.toInt()
+        5 -> accent
+        else -> PEACH
+    }
 
     fun render(ctx: Context, a: AppItem, color: Int): ImageBitmap {
         // the app's last update time is part of the key, so an updated app with a new logo is redrawn
