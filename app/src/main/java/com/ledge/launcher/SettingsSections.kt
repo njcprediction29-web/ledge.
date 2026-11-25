@@ -275,7 +275,7 @@ fun SettingsSections(s: Store, pal: Pal, onPick: () -> Unit, onLoc: () -> Unit) 
     ).filter { it.second in haveFonts }
     fontChoices.chunked(3).forEach { row ->
         Seg(row.map { it.first }, row.indexOfFirst { it.third == s.i("lfont") }, pal) { s.setI("lfont", row[it].third) }
-    }
+    }}
 
         Fold("🔤 A–Z letters", pal) {
             SectionLabel("Letter size", pal)
