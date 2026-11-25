@@ -343,7 +343,7 @@ fun Home(s: Store) {
                                     modifier = Modifier.padding(bottom = 6.dp, start = 4.dp)
                                 )
                             }
-                                        items(list, key = { "g" + it.pkg }) { a -> Entrance(list.indexOf(a)) {
+                                      items(list, key = { "g" + it.pkg }) { a -> Entrance(list.indexOf(a), a.pkg) {
                                 AppRow(a, pal, icon, if (showN) Badges.counts[a.pkg] ?: 0 else 0, null,
                                     { launchApp(ctx, a) }) {
                                     haptic.performHapticFeedback(HapticFeedbackType.LongPress); menuApp = a
@@ -389,7 +389,8 @@ fun Home(s: Store) {
                 ) { Text(letter.toString(), color = Color.Black, fontSize = 26.sp, fontWeight = FontWeight.Bold) }
             }
 
-            if (!clean || searchOpen) {
+                if (!searchOpen && !clean) SearchNowBar(Color(IconEngine.colorOf(s.i("ictheme"), pal.accent.toArgb())), Color(0xFF14161C), bottom) { searchOpen = true }
+    if (searchOpen) {
                 SearchBar(s, pal, top, icon, searchOpen, query, hasContacts,
                     onOpen = { searchOpen = true }, onQuery = { query = it }, onClose = { closeSearch() },
                     onAskContacts = { conL.launch(Manifest.permission.READ_CONTACTS) })
