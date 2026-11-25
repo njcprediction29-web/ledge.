@@ -1,5 +1,6 @@
 package com.ledge.launcher
 
+import android.content.Context
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -18,17 +19,26 @@ object DrawerAnim {
     const val FIRST_ROWS = 10
     const val STAGGER_MS = 28L
     const val DURATION_MS = 320
+    const val NEW_APP_MINUTES = 10
 }
 
-// Fades a row in and grows it slightly. Only the first rows animate, so scrolling stays smooth.
+private fun isRecent(ctx: Context, pkg: String): Boolean = try {
+    System.currentTimeMillis() - ctx.packageManager.getPackageInfo(pkg, 0).firstInstallTime <
+        DrawerAnim.NEW_APP_MINUTES * 60_000L
+} catch (e: Exception) { false }
+
+// Fades a row in and grows it slightly. The first rows animate, and so does an app installed
+// in the last few minutes, so a new app appears with the same soft entrance.
 @Composable
-fun Entrance(index: Int, content: @Composable () -> Unit) {
-    val still = reducedMotion(LocalContext.current)
-    val animate = !still && index in 0 until DrawerAnim.FIRST_ROWS
+fun Entrance(index: Int, pkg: String, content: @Composable () -> Unit) {
+    val ctx = LocalContext.current
+    val still = reducedMotion(ctx)
+    val fresh = remember(pkg) { pkg.isNotEmpty() && isRecent(ctx, pkg) }
+    val animate = !still && (index in 0 until DrawerAnim.FIRST_ROWS || fresh)
     val p = remember { Animatable(if (animate) 0f else 1f) }
     LaunchedEffect(Unit) {
         if (animate) {
-            delay(index * DrawerAnim.STAGGER_MS)
+            if (index in 0 until DrawerAnim.FIRST_ROWS) delay(index * DrawerAnim.STAGGER_MS)
             p.animateTo(1f, tween(DrawerAnim.DURATION_MS, easing = FastOutSlowInEasing))
         }
     }
