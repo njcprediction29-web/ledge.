@@ -263,13 +263,19 @@ fun SettingsSections(s: Store, pal: Pal, onPick: () -> Unit, onLoc: () -> Unit) 
             SectionLabel("App labels", pal)
             Seg(listOf("Hidden", "Shown"), s.i("labels"), pal) { s.setI("labels", it) }
             SectionLabel("Label size", pal)
-            Seg(listOf("Small", "Medium", "Large"), s.i("lsize"), pal) { s.setI("lsize", it) }
+            Seg(listOf("Small", "Medium", "Large", "Tiny"), s.i("lsize"), pal) { s.setI("lsize", it) }
             SectionLabel("Label weight", pal)
             Seg(listOf("Light", "Normal", "Bold"), s.i("lweight"), pal) { s.setI("lweight", it) }
             SectionLabel("Label font", pal)
             Seg(listOf("Default", "Serif", "Mono", "Script"), s.i("lfont"), pal) { s.setI("lfont", it) }
-            Seg(listOf("Martian", "Researcher"), when (s.i("lfont")) { 6 -> 0; 8 -> 1; else -> -1 }, pal) { s.setI("lfont", if (it == 0) 6 else 8) }
-        }
+                val haveFonts = remember { (ctx.assets.list("fonts") ?: emptyArray()).map { it.substringBeforeLast('.') }.toSet() }
+    val fontChoices = listOf(
+        Triple("Neumatic", "neumatic", 4), Triple("Galderglynn", "galderglynn", 5), Triple("Martian", "martianmono", 6),
+        Triple("Evogria", "evogria", 7), Triple("Researcher", "researcher", 8)
+    ).filter { it.second in haveFonts }
+    fontChoices.chunked(3).forEach { row ->
+        Seg(row.map { it.first }, row.indexOfFirst { it.third == s.i("lfont") }, pal) { s.setI("lfont", row[it].third) }
+    }
 
         Fold("🔤 A–Z letters", pal) {
             SectionLabel("Letter size", pal)
