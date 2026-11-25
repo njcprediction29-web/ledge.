@@ -170,7 +170,7 @@ class Store(private val app: Application) : AndroidViewModel(app) {
         "clean" to 0, "hy" to 2,
         "ishape" to 0, "isize" to 1, "ispace" to 1, "labels" to 1, "lsize" to 1, "lweight" to 1, "lfont" to 0,
         "cstyle" to 0, "csize" to 1, "ccolor" to 0, "cweight" to 0, "calign" to 0,
-        "wdir" to 0, "wmode" to 0, "wh" to 1, "hm" to 0, "hf" to 0, "hp" to 0, "mstyle" to 0
+        "wdir" to 0, "wmode" to 0, "wh" to 1, "hm" to 0, "hf" to 0, "hp" to 0, "mstyle" to 0, "ictheme" to 0
     )
     private val ints = mutableStateMapOf<String, Int>().also { m -> defs.forEach { (k, d) -> m[k] = sp.getInt(k, d) } }
     fun i(k: String): Int = ints[k] ?: 0
