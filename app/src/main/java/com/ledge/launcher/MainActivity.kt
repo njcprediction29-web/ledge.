@@ -733,7 +733,7 @@ fun AppRow(a: AppItem, pal: Pal, icon: Int, badge: Int, sub: String?, onOpen: ((
     val vp = floatArrayOf(4f, 8f, 14f)[st.i("ispace").coerceIn(0, 2)].dp
         var pressed by remember { mutableStateOf(false) }
     val pressScale by androidx.compose.animation.core.animateFloatAsState(if (pressed) 0.94f else 1f, animationSpec = androidx.compose.animation.core.tween(if (pressed) 90 else 180), label = "pressScale")
-    val labelSp = floatArrayOf(15f, 17f, 19f)[st.i("lsize").coerceIn(0, 2)].sp
+    val labelSp = floatArrayOf(15f, 17f, 19f, 12f)[st.i("lsize").coerceIn(0, 3)].sp
     val weight = arrayOf(FontWeight.Light, FontWeight.Normal, FontWeight.Bold)[st.i("lweight").coerceIn(0, 2)]
     val family = labelFontOf(st.i("lfont"))
     val showLabel = st.i("labels") == 1
