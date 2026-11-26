@@ -1,16 +1,19 @@
 package com.ledge.launcher
 
 import android.content.Context
+import android.graphics.Paint
+import android.graphics.Typeface
 import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.State
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -20,155 +23,154 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import kotlin.math.abs
-import kotlin.math.cos
-import kotlin.math.sin
 
-// Which way the phone points, in degrees (0 = north). Uses the phone's rotation sensor.
+// ONE place to change the background color (dark charcoal like the reference)
+private val BH_CHARCOAL = Color(0xFF1B1C1F)
+
+// Reads the phone's direction (0 = north) and smooths it so the compass moves gently
 @Composable
-fun rememberHeading(): State<Float> {
+private fun rememberBhAzimuth(): MutableState<Float> {
     val ctx = LocalContext.current
-    val heading = remember { mutableStateOf(0f) }
+    val az = remember { mutableStateOf(0f) }
     DisposableEffect(Unit) {
         val sm = ctx.getSystemService(Context.SENSOR_SERVICE) as SensorManager
         val sensor = sm.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
-        val r = FloatArray(9)
-        val r2 = FloatArray(9)
-        val o = FloatArray(3)
+        val rot = FloatArray(9)
+        val rem = FloatArray(9)
+        val ori = FloatArray(3)
         val listener = object : SensorEventListener {
             override fun onSensorChanged(e: SensorEvent) {
-                SensorManager.getRotationMatrixFromVector(r, e.values)
-                val upright = abs(r[8]) < 0.7f
-                if (upright) {
-                    SensorManager.remapCoordinateSystem(r, SensorManager.AXIS_X, SensorManager.AXIS_Z, r2)
-                    SensorManager.getOrientation(r2, o)
-                } else {
-                    SensorManager.getOrientation(r, o)
-                }
-                val target = ((Math.toDegrees(o[0].toDouble()) + 360.0) % 360.0).toFloat()
-                var d = target - heading.value
+                SensorManager.getRotationMatrixFromVector(rot, e.values)
+                // phone held upright (screen facing you), like the reference video
+                SensorManager.remapCoordinateSystem(
+                    rot, SensorManager.AXIS_X, SensorManager.AXIS_Z, rem
+                )
+                SensorManager.getOrientation(rem, ori)
+                val target = Math.toDegrees(ori[0].toDouble()).toFloat()
+                var d = target - az.value
                 while (d > 180f) d -= 360f
                 while (d < -180f) d += 360f
-                heading.value = (heading.value + d * 0.15f + 360f) % 360f
+                az.value = az.value + d * 0.12f
             }
 
             override fun onAccuracyChanged(s: Sensor?, a: Int) {}
         }
-        if (sensor != null) sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_UI)
+        if (sensor != null) {
+            sm.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_UI)
+        }
         onDispose { sm.unregisterListener(listener) }
     }
-    return heading
+    return az
 }
 
+// The whole background of the home screen: charcoal + glowing half ring + compass inside
 @Composable
-fun BlackHoleHeader(modifier: Modifier = Modifier) {
-    val heading = rememberHeading()
+fun BlackHoleBackground() {
+    val az = rememberBhAzimuth()
     val paint = remember {
-        android.graphics.Paint().apply {
-            isAntiAlias = true
+        Paint().apply {
             color = android.graphics.Color.WHITE
-            textAlign = android.graphics.Paint.Align.CENTER
-            isFakeBoldText = true
+            textAlign = Paint.Align.CENTER
+            isAntiAlias = true
+            typeface = Typeface.DEFAULT_BOLD
         }
     }
-    Canvas(modifier = modifier.fillMaxWidth().height(230.dp)) {
-        val hd = heading.value
-        val w = size.width
-        val h = size.height
-        val c = Offset(w * 0.5f, h * 0.94f)
-        val rad = w * 0.26f
-        val thin = 1.dp.toPx()
+    Box(Modifier.fillMaxSize().background(BH_CHARCOAL)) {
+        Canvas(Modifier.fillMaxSize()) {
+            val w = size.width
+            val h = size.height
+            val cx = w / 2f
+            val cy = h * 0.36f          // height of the flat bottom edge (move this to go up or down)
+            val r = w * 0.30f           // size of the black hole (make bigger or smaller)
+            val thin = 1.dp.toPx()
+            val center = Offset(cx, cy)
 
-        // Only the upper half is visible, cut flat at the centre line.
-        clipRect(top = 0f, bottom = c.y) {
-            // pure black behind everything, so the wallpaper never shows here
-            drawRect(Color.Black)
-
-            // soft white glow around the hole, fading to nothing
-            drawCircle(
-                brush = Brush.radialGradient(
-                    colorStops = arrayOf(
-                        0.0f to Color.Transparent,
-                        0.50f to Color.White.copy(alpha = 0.60f),
-                        0.65f to Color.White.copy(alpha = 0.18f),
-                        1.0f to Color.Transparent
+            // only the top half is visible, cut flat at the bottom
+            clipRect(left = 0f, top = 0f, right = w, bottom = cy) {
+                // soft glow
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color.White.copy(alpha = 0.30f),
+                            Color.White.copy(alpha = 0.08f),
+                            Color.Transparent
+                        ),
+                        center = center,
+                        radius = r * 2.1f
                     ),
-                    center = c,
-                    radius = rad * 1.9f
-                ),
-                radius = rad * 1.9f,
-                center = c
-            )
+                    radius = r * 2.1f,
+                    center = center
+                )
 
-            // the flat disk seen from the side: thin streaks across the hole
-            for (i in 0..11) {
-                val a = w * 0.5f
-                val b = rad * (0.06f + 0.05f * i)
-                drawOval(
-                    color = Color.White.copy(alpha = (0.55f - 0.045f * i).coerceAtLeast(0.06f)),
-                    topLeft = Offset(c.x - a, c.y - b),
-                    size = Size(2f * a, 2f * b),
+                // thin light streaks that bend around the ring
+                for (i in 0..7) {
+                    val f = i.toFloat()
+                    val rx = r * (1.12f + 0.09f * f)
+                    val ry = r * (0.10f + 0.07f * f)
+                    drawArc(
+                        color = Color.White.copy(alpha = 0.55f - 0.05f * f),
+                        startAngle = 180f,
+                        sweepAngle = 180f,
+                        useCenter = false,
+                        topLeft = Offset(cx - rx, cy - ry),
+                        size = Size(rx * 2f, ry * 2f),
+                        style = Stroke(width = thin)
+                    )
+                }
+
+                // black center
+                drawCircle(color = Color.Black, radius = r * 0.86f, center = center)
+
+                // white ring (thick) and faint outer ring
+                drawCircle(
+                    color = Color.White,
+                    radius = r * 0.88f,
+                    center = center,
+                    style = Stroke(width = 3.dp.toPx())
+                )
+                drawCircle(
+                    color = Color.White.copy(alpha = 0.45f),
+                    radius = r * 0.94f,
+                    center = center,
                     style = Stroke(width = thin)
                 )
-            }
-            // bright line where the disk is brightest, fading at both ends
-            drawLine(
-                brush = Brush.horizontalGradient(
-                    colors = listOf(Color.Transparent, Color.White, Color.Transparent),
-                    startX = 0f,
-                    endX = w
-                ),
-                start = Offset(0f, c.y - 1.dp.toPx()),
-                end = Offset(w, c.y - 1.dp.toPx()),
-                strokeWidth = 3.dp.toPx()
-            )
 
-            // the black hole itself: a pure black shadow with a bright thin ring
-            drawCircle(color = Color.Black, radius = rad, center = c)
-            drawCircle(
-                color = Color.White.copy(alpha = 0.35f),
-                radius = rad * 1.07f,
-                center = c,
-                style = Stroke(width = thin * 2f)
-            )
-            drawCircle(
-                color = Color.White,
-                radius = rad,
-                center = c,
-                style = Stroke(width = rad * 0.05f)
-            )
+                // compass: turns the opposite way of the phone so N always points north
+                paint.textSize = r * 0.17f
+                rotate(degrees = -az.value, pivot = center) {
+                    for (k in 0 until 24) {
+                        val big = k % 6 == 0
+                        rotate(degrees = k * 15f, pivot = center) {
+                            drawLine(
+                                color = Color.White.copy(alpha = if (big) 0.9f else 0.5f),
+                                start = Offset(cx, cy - r * 0.78f),
+                                end = Offset(cx, cy - r * (if (big) 0.66f else 0.71f)),
+                                strokeWidth = thin * 1.5f
+                            )
+                        }
+                    }
+                    val letters = listOf("N" to 0f, "E" to 90f, "S" to 180f, "W" to 270f)
+                    for (pair in letters) {
+                        rotate(degrees = pair.second, pivot = center) {
+                            drawIntoCanvas { c ->
+                                c.nativeCanvas.drawText(pair.first, cx, cy - r * 0.46f, paint)
+                            }
+                        }
+                    }
+                }
 
-            // compass ticks (they turn with the phone)
-            for (deg in 0 until 360 step 15) {
-                val ang = Math.toRadians((deg - hd).toDouble())
-                val long = deg % 90 == 0
-                val r1 = rad * (if (long) 0.74f else 0.82f)
-                val r2 = rad * 0.90f
-                val sx = sin(ang).toFloat()
-                val sy = -cos(ang).toFloat()
-                drawLine(
+                // small fixed dot at the top: shows which way you are facing
+                drawCircle(
                     color = Color.White,
-                    start = Offset(c.x + sx * r1, c.y + sy * r1),
-                    end = Offset(c.x + sx * r2, c.y + sy * r2),
-                    strokeWidth = if (long) thin * 1.8f else thin
+                    radius = 2.5.dp.toPx(),
+                    center = Offset(cx, cy - r * 0.82f)
                 )
             }
-            // the letter N sits at true north
-            val an = Math.toRadians((-hd).toDouble())
-            val nr = rad * 0.58f
-            paint.textSize = rad * 0.20f
-            drawContext.canvas.nativeCanvas.drawText(
-                "N",
-                c.x + sin(an).toFloat() * nr,
-                c.y - cos(an).toFloat() * nr + paint.textSize * 0.35f,
-                paint
-            )
-            // fixed pointer (where the phone points)
-            drawLine(Color.White, c, Offset(c.x, c.y - rad * 0.40f), strokeWidth = thin * 1.4f)
-            drawLine(Color.White, c, Offset(c.x + rad * 0.25f, c.y), strokeWidth = thin * 1.4f)
         }
     }
 }
