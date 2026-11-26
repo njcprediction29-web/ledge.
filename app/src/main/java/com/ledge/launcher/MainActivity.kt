@@ -281,7 +281,7 @@ fun Home(s: Store) {
                             start = if (left) 46.dp else 20.dp, end = if (left) 20.dp else 46.dp
                         )
                     ) {
-                        item(key = "blackhole") { BlackHoleHeader() }
+                        
                         // The widgets appear in the order chosen in Settings > Home widgets
                         s.widgetOrder.forEach { w ->
                             when (w) {
