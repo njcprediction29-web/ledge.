@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 
-// ---- the black hole picture: app/src/main/assets/blackhole.png (941 x 420) ----
+// ---- the black hole picture: app/src/main/assets/fonts/blackhole.png (941 x 420) ----
 // Measurements inside that picture (in picture pixels):
 private const val IMG_W = 941f
 private const val DISK_Y = 269f      // the bright flat line across the middle
@@ -49,17 +49,16 @@ private fun rememberBhAzimuth(): MutableState<Float> {
         val sm = ctx.getSystemService(Context.SENSOR_SERVICE) as SensorManager
         val sensor = sm.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR)
         val rot = FloatArray(9)
-        val rem = FloatArray(9)
-        val ori = FloatArray(3)
         val listener = object : SensorEventListener {
             override fun onSensorChanged(e: SensorEvent) {
                 SensorManager.getRotationMatrixFromVector(rot, e.values)
-                // phone held upright (screen facing you), like the reference video
-                SensorManager.remapCoordinateSystem(
-                    rot, SensorManager.AXIS_X, SensorManager.AXIS_Z, rem
-                )
-                SensorManager.getOrientation(rem, ori)
-                val target = Math.toDegrees(ori[0].toDouble()).toFloat()
+                // Heading that works held upright, tilted or flat, and ignores sideways tilting:
+                // upright -> uses the direction the back of the phone faces
+                // flat    -> uses the direction the top edge of the phone points
+                val flat = rot[8] * rot[8]
+                val east = -rot[2] + rot[1] * flat
+                val north = -rot[5] + rot[4] * flat
+                val target = Math.toDegrees(Math.atan2(east.toDouble(), north.toDouble())).toFloat()
                 var d = target - az.value
                 while (d > 180f) d -= 360f
                 while (d < -180f) d += 360f
@@ -83,7 +82,7 @@ fun BlackHoleBackground() {
     val az = rememberBhAzimuth()
     val img = remember {
         try {
-            ctx.assets.open("blackhole.png").use { BitmapFactory.decodeStream(it) }
+            ctx.assets.open("fonts/blackhole.png").use { BitmapFactory.decodeStream(it) }
                 ?.asImageBitmap()
         } catch (e: Exception) {
             null
@@ -106,6 +105,12 @@ fun BlackHoleBackground() {
             val s = w / IMG_W            // the picture is stretched to the screen width
             val thin = 1.dp.toPx()
 
+            if (img == null) {
+                paint.textSize = 14.dp.toPx()
+                drawIntoCanvas { c ->
+                    c.nativeCanvas.drawText("fonts/blackhole.png not found", cx, cy + 60.dp.toPx(), paint)
+                }
+            }
             if (img != null) {
                 val top = cy - DISK_Y * s
                 drawImage(
