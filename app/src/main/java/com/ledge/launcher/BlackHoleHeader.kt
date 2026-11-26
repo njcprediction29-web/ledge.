@@ -69,7 +69,7 @@ fun BlackHoleHeader(modifier: Modifier = Modifier) {
     val paint = remember {
         android.graphics.Paint().apply {
             isAntiAlias = true
-            color = android.graphics.Color.BLACK
+            color = android.graphics.Color.WHITE
             textAlign = android.graphics.Paint.Align.CENTER
             isFakeBoldText = true
         }
@@ -78,62 +78,88 @@ fun BlackHoleHeader(modifier: Modifier = Modifier) {
         val hd = heading.value
         val w = size.width
         val h = size.height
-        val c = Offset(w * 0.62f, h * 0.94f)
-        val rad = w * 0.30f
-        val thin = 1.2.dp.toPx()
+        val c = Offset(w * 0.5f, h * 0.94f)
+        val rad = w * 0.26f
+        val thin = 1.dp.toPx()
 
-        // Only the upper half is visible, cut flat at the centre line (like the reference).
+        // Only the upper half is visible, cut flat at the centre line.
         clipRect(top = 0f, bottom = c.y) {
-            // soft glow
+            // pure black behind everything, so the wallpaper never shows here
+            drawRect(Color.Black)
+
+            // soft white glow around the hole, fading to nothing
             drawCircle(
                 brush = Brush.radialGradient(
-                    colors = listOf(Color.White.copy(alpha = 0.35f), Color.Transparent),
+                    colorStops = arrayOf(
+                        0.0f to Color.Transparent,
+                        0.50f to Color.White.copy(alpha = 0.60f),
+                        0.65f to Color.White.copy(alpha = 0.18f),
+                        1.0f to Color.Transparent
+                    ),
                     center = c,
-                    radius = rad * 2.3f
+                    radius = rad * 1.9f
                 ),
-                radius = rad * 2.3f,
+                radius = rad * 1.9f,
                 center = c
             )
-            // thin disk streaks
-            for (i in 0..13) {
-                val a = w * (1.0f - 0.04f * i)
-                val b = rad * (0.10f + 0.045f * i)
-                val alpha = 0.75f - 0.045f * i
+
+            // the flat disk seen from the side: thin streaks across the hole
+            for (i in 0..11) {
+                val a = w * 0.5f
+                val b = rad * (0.06f + 0.05f * i)
                 drawOval(
-                    color = Color.White.copy(alpha = alpha.coerceIn(0.1f, 0.8f)),
+                    color = Color.White.copy(alpha = (0.55f - 0.045f * i).coerceAtLeast(0.06f)),
                     topLeft = Offset(c.x - a, c.y - b),
                     size = Size(2f * a, 2f * b),
                     style = Stroke(width = thin)
                 )
             }
-            // bright eye
-            drawCircle(color = Color.White, radius = rad, center = c)
+            // bright line where the disk is brightest, fading at both ends
+            drawLine(
+                brush = Brush.horizontalGradient(
+                    colors = listOf(Color.Transparent, Color.White, Color.Transparent),
+                    startX = 0f,
+                    endX = w
+                ),
+                start = Offset(0f, c.y - 1.dp.toPx()),
+                end = Offset(w, c.y - 1.dp.toPx()),
+                strokeWidth = 3.dp.toPx()
+            )
+
+            // the black hole itself: a pure black shadow with a bright thin ring
+            drawCircle(color = Color.Black, radius = rad, center = c)
             drawCircle(
-                color = Color(0xFFBBBBBB),
-                radius = rad * 0.93f,
+                color = Color.White.copy(alpha = 0.35f),
+                radius = rad * 1.07f,
                 center = c,
-                style = Stroke(width = thin)
+                style = Stroke(width = thin * 2f)
+            )
+            drawCircle(
+                color = Color.White,
+                radius = rad,
+                center = c,
+                style = Stroke(width = rad * 0.05f)
             )
 
             // compass ticks (they turn with the phone)
             for (deg in 0 until 360 step 15) {
                 val ang = Math.toRadians((deg - hd).toDouble())
                 val long = deg % 90 == 0
-                val r1 = rad * (if (long) 0.80f else 0.86f)
-                val r2 = rad * 0.92f
+                val r1 = rad * (if (long) 0.74f else 0.82f)
+                val r2 = rad * 0.90f
                 val sx = sin(ang).toFloat()
                 val sy = -cos(ang).toFloat()
                 drawLine(
-                    color = Color.Black,
+                    color = Color.White,
                     start = Offset(c.x + sx * r1, c.y + sy * r1),
                     end = Offset(c.x + sx * r2, c.y + sy * r2),
-                    strokeWidth = if (long) thin * 1.6f else thin
+                    strokeWidth = if (long) thin * 1.8f else thin
                 )
             }
             // the letter N sits at true north
             val an = Math.toRadians((-hd).toDouble())
-            val nr = rad * 0.66f
-            paint.textSize = rad * 0.22f
+            val nr = rad * 0.58f
+            paint.textSize = rad * 0.20f
             drawContext.canvas.nativeCanvas.drawText(
                 "N",
                 c.x + sin(an).toFloat() * nr,
@@ -141,8 +167,8 @@ fun BlackHoleHeader(modifier: Modifier = Modifier) {
                 paint
             )
             // fixed pointer (where the phone points)
-            drawLine(Color.Black, c, Offset(c.x, c.y - rad * 0.45f), strokeWidth = thin * 1.4f)
-            drawLine(Color.Black, c, Offset(c.x + rad * 0.3f, c.y), strokeWidth = thin * 1.4f)
+            drawLine(Color.White, c, Offset(c.x, c.y - rad * 0.40f), strokeWidth = thin * 1.4f)
+            drawLine(Color.White, c, Offset(c.x + rad * 0.25f, c.y), strokeWidth = thin * 1.4f)
         }
     }
 }
