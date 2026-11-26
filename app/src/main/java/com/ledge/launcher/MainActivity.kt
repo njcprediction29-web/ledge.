@@ -261,7 +261,7 @@ fun Home(s: Store) {
         } else if (wp == 100) {
             s.wallBmp?.let { Image(it, null, Modifier.fillMaxSize().then(wb), contentScale = ContentScale.Crop) }
         }
-
+BlackHoleBackground()
         Box(
             Modifier.fillMaxSize()
                 .graphicsLayer {
