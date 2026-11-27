@@ -311,7 +311,7 @@ if (from == null) {
                                 }
                                 "favs" -> {
                                     // Favorites: tap to open, long-press and drag to reorder, long-press and let go for options
-                                    if (s.i("hf") == 0) {
+                                    if (false) {
                                         items(favApps, key = { "f" + it.pkg }) { a ->
                                             DragFavRow(
                                                 a, pal, icon, if (showN) Badges.counts[a.pkg] ?: 0 else 0,
