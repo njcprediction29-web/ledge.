@@ -101,7 +101,7 @@ fun BlackHoleBackground() {
             val w = size.width
             val h = size.height
             val cx = w / 2f
-            val cy = h * 0.42f           // where the bright flat line sits (bigger number = lower)
+            val cy = h * 0.30f           // where the bright flat line sits (bigger number = lower)
             val s = w / IMG_W            // the picture is stretched to the screen width
             val thin = 1.dp.toPx()
 
