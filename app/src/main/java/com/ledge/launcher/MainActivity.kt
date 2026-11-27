@@ -503,14 +503,14 @@ fun HeaderBlock(s: Store, pal: Pal, onWeather: () -> Unit, onSettings: () -> Uni
     ) {
         ClockFace(s, pal, time, weekday, onLong = onSettings)
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(date, color = pal.sub, fontSize = 12.sp, style = SH)
+            Text(date, color = pal.sub, fontSize = 14.sp, style = SH)
             if (s.i("sw") == 1) {
                 Text(
-                    "  ·  ${weather ?: "🌡️ tap for weather"}", color = pal.sub, fontSize = 12.sp, style = SH,
+                    "  ·  ${weather ?: "🌡️ tap for weather"}", color = pal.sub, fontSize = 14.sp, style = SH,
                     modifier = Modifier.clickable { if (weather == null) onWeather() }
                 )
             }
-            if (s.i("sb") == 1 && battery >= 0) Text("  ·  🔋 $battery%", color = pal.sub, fontSize = 12.sp, style = SH)
+            if (s.i("sb") == 1 && battery >= 0) Text("  ·  🔋 $battery%", color = pal.sub, fontSize = 14.sp, style = SH)
         }
         if (!clean) {
             Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
