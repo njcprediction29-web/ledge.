@@ -248,7 +248,7 @@ fun Home(s: Store) {
     val left = s.i("side") == 1
     val icon = s.i("icon")
     val clean = s.i("clean") == 1
-    val homeTop = floatArrayOf(14f, 90f, 170f)[s.i("hy").coerceIn(0, 2)].dp
+    val homeTop = floatArrayOf(14f, 40f, 70f)[s.i("hy").coerceIn(0, 2)].dp
     val showN = s.i("sn") == 1 && !clean
     val wp = s.i("wp")
     val wb = if (overlay) Modifier.blur(18.dp, BlurredEdgeTreatment.Unbounded) else Modifier
@@ -290,6 +290,7 @@ BlackHoleBackground()
                                         HeaderBlock(s, pal, { locL.launch(Manifest.permission.ACCESS_COARSE_LOCATION) },
                                             { settingsOpen = true }, { verseOpen = true }, { todoOpen = true })
                                     }
+                                    item(key = "bhgap") { Spacer(Modifier.height((LocalConfiguration.current.screenHeightDp * 0.36f).dp)) }
                                 }
                                 "calendar" -> {
                                     if (!clean && s.i("hc") == 0) item(key = "cal") { CalendarBox(pal) }
