@@ -502,16 +502,7 @@ fun HeaderBlock(s: Store, pal: Pal, onWeather: () -> Unit, onSettings: () -> Uni
         horizontalAlignment = if (s.i("calign") == 1) Alignment.CenterHorizontally else Alignment.Start
     ) {
         ClockFace(s, pal, time, weekday, onLong = onSettings)
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(date, color = pal.sub, fontSize = 14.sp, style = SH)
-            if (s.i("sw") == 1) {
-                Text(
-                    "  ·  ${weather ?: "🌡️ tap for weather"}", color = pal.sub, fontSize = 14.sp, style = SH,
-                    modifier = Modifier.clickable { if (weather == null) onWeather() }
-                )
-            }
-            if (s.i("sb") == 1 && battery >= 0) Text("  ·  🔋 $battery%", color = pal.sub, fontSize = 14.sp, style = SH)
-        }
+        BhWeatherPanel(s, date, battery) { onWeather() }
         if (!clean) {
             Row(Modifier.padding(top = 10.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (s.i("sv") == 1) SmallChip("📖 ${verse.first}", pal, onVerse)
