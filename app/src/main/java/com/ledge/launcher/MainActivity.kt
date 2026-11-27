@@ -262,6 +262,14 @@ fun Home(s: Store) {
             s.wallBmp?.let { Image(it, null, Modifier.fillMaxSize().then(wb), contentScale = ContentScale.Crop) }
         }
 BlackHoleBackground()
+if (from == null) {
+    BhDock(
+        favApps.take(5), pal, icon,
+        Modifier.align(Alignment.BottomCenter)
+            .padding(bottom = bottom + 28.dp, start = if (left) 46.dp else 20.dp, end = if (left) 20.dp else 46.dp),
+        { launchApp(ctx, it) }, { menuApp = it }
+    )
+}
         Box(
             Modifier.fillMaxSize()
                 .graphicsLayer {
