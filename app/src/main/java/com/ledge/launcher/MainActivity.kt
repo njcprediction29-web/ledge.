@@ -294,11 +294,12 @@ if (from == null) {
                         s.widgetOrder.forEach { w ->
                             when (w) {
                                 "clock" -> {
+                                    item(key = "bhgap") { Spacer(Modifier.height((LocalConfiguration.current.screenHeightDp * 0.36f).dp)) }
                                     item(key = "head") {
                                         HeaderBlock(s, pal, { locL.launch(Manifest.permission.ACCESS_COARSE_LOCATION) },
                                             { settingsOpen = true }, { verseOpen = true }, { todoOpen = true })
                                     }
-                                    item(key = "bhgap") { Spacer(Modifier.height((LocalConfiguration.current.screenHeightDp * 0.20f).dp)) }
+                                    
                                 }
                                 "calendar" -> {
                                     if (!clean && s.i("hc") == 0) item(key = "cal") { CalendarBox(pal) }
